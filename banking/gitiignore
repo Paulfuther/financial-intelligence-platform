@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django
+db.sqlite3
+*.sqlite3
+
+# Virtual Environments
+venv/
+env/
+.venv/
+
+# Environment Variables
+.env
+.env.*
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Static build files
+staticfiles/
+
+# Media uploads
+media/
+
+# CSV imports
+*.csv
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+
+# Pytest
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Migrations cache
+*.pyc
+
+# Local settings
+local_settings.py
+
+# Secrets
+secrets.json
+config.json

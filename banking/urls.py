@@ -1,0 +1,23 @@
+from django.urls import path
+from . import views
+
+app_name = "banking"
+
+urlpatterns = [
+    path("", views.dashboard, name="dashboard"),
+    path("rules/", views.rules_management, name="rules_management"),
+    path("rules/<int:rule_id>/edit/", views.edit_rule, name="edit_rule"),
+    path(
+    "rules/<int:rule_id>/edit/",
+    views.edit_rule,
+    name="edit_rule"
+),
+    path("rules/<int:rule_id>/", views.rule_detail, name="rule_detail"),
+    path(
+    "categories/<str:category>/",
+    views.category_detail,
+    name="category_detail",
+),
+    path("import/", views.import_bank_csv, name="import_bank_csv"),
+    path("imports/", views.import_log_list, name="import_log_list"),
+]

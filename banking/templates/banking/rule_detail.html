@@ -1,0 +1,46 @@
+<div class="container py-4" style="max-width: 1200px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1>{{ rule.keyword }}</h1>
+      <div class="text-muted">Category: {{ rule.category }}</div>
+    </div>
+
+    <a href="{% url 'banking:rules_management' %}" class="btn btn-outline-secondary">
+      Back to Rules
+    </a>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <div class="text-muted">Total matched spend</div>
+      <h2>${{ total_spend|floatformat:2 }}</h2>
+    </div>
+  </div>
+
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5>Matched Vendors / Descriptions</h5>
+
+      <table class="table table-sm">
+        <thead>
+          <tr>
+            <th>Description</th>
+            <th class="text-end">Rows</th>
+            <th class="text-end">Total Spend</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in vendor_summary %}
+            <tr>
+              <td>{{ row.description }}</td>
+              <td class="text-end">{{ row.rows }}</td>
+              <td class="text-end">${{ row.total_spend|floatformat:2 }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
