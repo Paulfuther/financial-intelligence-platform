@@ -1,0 +1,87 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+.env
+venv/
+__pycache__/
+*.pyc
+.DS_Store
+*.csv
+
+
+# Django
+db.sqlite3
+*.sqlite3
+
+# Virtual Environments
+venv/
+env/
+.venv/
+
+# Environment Variables
+.env
+.env.*
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Static build files
+staticfiles/
+
+# Media uploads
+media/
+
+# CSV imports
+*.csv
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+
+# Pytest
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Migrations cache
+*.pyc
+
+# Local settings
+local_settings.py
+
+# Secrets
+secrets.json
+config.json
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment
+.env
+venv/
+
+# macOS
+.DS_Store
+
+# CSV Files
+*.csv
+
+venv/
+.venv/
+__pycache__/
+*.pyc
+.env
+*.csv
+.DS_Store
