@@ -1,12 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Sum, Count, Avg, Max
-from django.db.models.functions import ExtractYear
+from django.db.models.functions import ExtractYear, ExtractMonth
 from .models import BankTransaction, CategoryRule, ImportLog
 import csv
 import hashlib
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
-
 from django.contrib import messages
 
 
@@ -279,12 +278,32 @@ def category_detail(request, category):
         .order_by("keyword")
     )
 
+    monthly_trend = (
+        transactions
+        .annotate(
+            year=ExtractYear("transaction_date"),
+            month=ExtractMonth("transaction_date"),
+        )
+        .values("year", "month")
+        .annotate(total_spend=Sum("dr"))
+        .order_by("year", "month")
+    )
+
+    monthly_labels = []
+    monthly_totals = []
+
+    for row in monthly_trend:
+        monthly_labels.append(f"{row['year']}-{row['month']:02d}")
+        monthly_totals.append(float(row["total_spend"] or 0))
+
     context = {
         "category": category,
         "transactions": transactions,
         "vendor_summary": vendor_summary,
         "rules": rules,
         "summary": summary,
+        "monthly_labels": monthly_labels,
+        "monthly_totals": monthly_totals,
     }
 
     return render(
@@ -292,7 +311,6 @@ def category_detail(request, category):
         "banking/category_detail.html",
         context,
     )
-
 
 
 def parse_money(value):
@@ -438,3 +456,5 @@ def import_log_list(request):
     return render(request, "banking/import_log_list.html", {
         "logs": logs,
     })
+
+

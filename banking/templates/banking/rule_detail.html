@@ -1,46 +1,164 @@
-<div class="container py-4" style="max-width: 1200px;">
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ rule.keyword }} Rule Detail</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  >
+
+  <style>
+    .page-container {
+      max-width: 1300px;
+      margin: 0 auto;
+    }
+
+    .scroll-card {
+      max-height: 650px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+
+<body class="bg-light">
+
+<div class="page-container py-4 px-3">
 
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-      <h1>{{ rule.keyword }}</h1>
-      <div class="text-muted">Category: {{ rule.category }}</div>
+      <h1 class="mb-1">{{ rule.keyword }}</h1>
+      <div class="text-muted">
+        Rule detail · Category: {{ rule.category }}
+      </div>
     </div>
 
-    <a href="{% url 'banking:rules_management' %}" class="btn btn-outline-secondary">
-      Back to Rules
-    </a>
-  </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'banking:edit_rule' rule.id %}" class="btn btn-outline-primary">
+        Edit Rule
+      </a>
 
-  <div class="card mb-4">
-    <div class="card-body">
-      <div class="text-muted">Total matched spend</div>
-      <h2>${{ total_spend|floatformat:2 }}</h2>
+      <a href="{% url 'banking:rules_management' %}" class="btn btn-outline-secondary">
+        Back to Rules
+      </a>
     </div>
   </div>
 
-  <div class="card mb-4">
-    <div class="card-body">
-      <h5>Matched Vendors / Descriptions</h5>
+  <div class="row g-3 mb-4">
 
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>Description</th>
-            <th class="text-end">Rows</th>
-            <th class="text-end">Total Spend</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in vendor_summary %}
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="text-muted">Total Matched Spend</div>
+          <h3 class="mb-0">${{ total_spend|default:0|floatformat:2 }}</h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="text-muted">Matched Vendors</div>
+          <h3 class="mb-0">{{ vendor_summary|length }}</h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0 h-100">
+        <div class="card-body">
+          <div class="text-muted">Category</div>
+          <h3 class="mb-0">{{ rule.category }}</h3>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+      <h5 class="mb-3">Matched Vendors / Descriptions</h5>
+
+      <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
+          <thead class="table-light">
             <tr>
-              <td>{{ row.description }}</td>
-              <td class="text-end">{{ row.rows }}</td>
-              <td class="text-end">${{ row.total_spend|floatformat:2 }}</td>
+              <th>Description</th>
+              <th class="text-end">Rows</th>
+              <th class="text-end">Total Spend</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+
+          <tbody>
+            {% for row in vendor_summary %}
+              <tr>
+                <td>{{ row.description }}</td>
+                <td class="text-end">{{ row.rows }}</td>
+                <td class="text-end">${{ row.total_spend|default:0|floatformat:2 }}</td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="3" class="text-center text-muted">
+                  No matching vendors found.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <h5 class="mb-3">Matching Transactions</h5>
+
+      <div class="table-responsive scroll-card">
+        <table class="table table-sm table-striped align-middle">
+          <thead class="table-light sticky-top">
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th class="text-end">DR</th>
+              <th class="text-end">CR</th>
+              <th class="text-end">Balance</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for tx in transactions %}
+              <tr>
+                <td>{{ tx.transaction_date }}</td>
+                <td>{{ tx.description }}</td>
+                <td class="text-end">
+                  {% if tx.dr %}${{ tx.dr|floatformat:2 }}{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if tx.cr %}${{ tx.cr|floatformat:2 }}{% endif %}
+                </td>
+                <td class="text-end">
+                  {% if tx.balance %}${{ tx.balance|floatformat:2 }}{% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" class="text-center text-muted">
+                  No matching transactions found.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+
+        </table>
+      </div>
+
     </div>
   </div>
 
 </div>
+
+</body>
+</html>

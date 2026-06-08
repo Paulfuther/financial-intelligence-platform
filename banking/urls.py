@@ -20,4 +20,9 @@ urlpatterns = [
 ),
     path("import/", views.import_bank_csv, name="import_bank_csv"),
     path("imports/", views.import_log_list, name="import_log_list"),
+    path(
+    "categories/<str:category>/",
+    views.category_detail,
+    name="category_detail",
+),
 ]
