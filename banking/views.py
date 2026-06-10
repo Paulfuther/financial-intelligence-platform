@@ -34,8 +34,23 @@ def dashboard(request):
     year = request.GET.get("year")
     month = request.GET.get("month")
     category = request.GET.get("category")
+    account = request.GET.get("account")
+
+    # account summary
+    account_summary = (
+        BankTransaction.objects
+        .values("account_name")
+        .annotate(
+            transaction_count=Count("id"),
+            total_spend=Sum("dr"),
+        )
+        .order_by("account_name")
+    )
+    #
 
     transactions = BankTransaction.objects.all()
+    if account:
+        transactions = transactions.filter(account_name=account)
 
     if year:
         transactions = transactions.filter(transaction_date__year=year)
@@ -61,6 +76,15 @@ def dashboard(request):
         .values_list("category", flat=True)
         .distinct()
         .order_by("category")
+    )
+
+    accounts = (
+        BankTransaction.objects
+        .exclude(account_name__isnull=True)
+        .exclude(account_name="")
+        .values_list("account_name", flat=True)
+        .distinct()
+        .order_by("account_name")
     )
 
     total_spend = transactions.aggregate(total=Sum("dr"))["total"] or 0
@@ -104,6 +128,9 @@ def dashboard(request):
         "category_labels": category_labels,
         "category_totals": category_totals,
         "last_import": last_import,
+        "accounts": accounts,
+        "selected_account": account,
+        "account_summary": account_summary,
     }
 
     return render(request, "banking/dashboard.html", context)
@@ -367,12 +394,20 @@ def import_bank_csv(request):
 
         if form.is_valid():
             csv_file = request.FILES["csv_file"]
+            account_name = form.cleaned_data["account_name"]
             decoded_file = csv_file.read().decode("utf-8-sig").splitlines()
 
-            reader = csv.DictReader(
-                decoded_file,
-                fieldnames=["date", "description", "dr", "cr", "balance"],
-            )
+            first_line = decoded_file[0]
+            delimiter = "\t" if "\t" in first_line else ","
+
+            if first_line.lower().startswith("transaction_date"):
+                reader = csv.DictReader(decoded_file, delimiter=delimiter)
+            else:
+                reader = csv.DictReader(
+                    decoded_file,
+                    fieldnames=["date", "description", "dr", "cr", "balance"],
+                    delimiter=delimiter,
+                )
 
             imported = 0
             skipped = 0
@@ -380,11 +415,14 @@ def import_bank_csv(request):
             latest_transaction_date = None
 
             for row_number, row in enumerate(reader, start=1):
-                date_text = row.get("date")
+                date_text = row.get("transaction_date") or row.get("date")
                 description = (row.get("description") or "").strip()
                 dr = parse_money(row.get("dr"))
                 cr = parse_money(row.get("cr"))
                 balance = parse_money(row.get("balance"))
+
+                category = row.get("category") or "Uncategorized"
+                existing_hash = row.get("import_hash")
 
                 transaction_date = parse_date(date_text)
 
@@ -396,7 +434,7 @@ def import_bank_csv(request):
                     errors += 1
                     continue
 
-                import_hash = build_hash(
+                import_hash = existing_hash or build_hash(
                     transaction_date,
                     description,
                     dr,
@@ -405,6 +443,7 @@ def import_bank_csv(request):
                 )
 
                 duplicate_exists = BankTransaction.objects.filter(
+                    account_name=account_name,
                     transaction_date=transaction_date,
                     description=description,
                     dr=dr,
@@ -422,8 +461,9 @@ def import_bank_csv(request):
                     dr=dr,
                     cr=cr,
                     balance=balance,
-                    category="Uncategorized",
+                    category=category,
                     import_hash=import_hash,
+                    account_name=account_name,
                 )
 
                 imported += 1
@@ -432,6 +472,7 @@ def import_bank_csv(request):
 
             ImportLog.objects.create(
                 file_name=csv_file.name,
+                account_name=account_name,
                 imported_count=imported,
                 skipped_count=skipped,
                 error_count=errors,
@@ -451,10 +492,28 @@ def import_bank_csv(request):
     return render(request, "banking/import_bank_csv.html", {"form": form})
 
 def import_log_list(request):
-    logs = ImportLog.objects.all().order_by("-imported_at")
 
-    return render(request, "banking/import_log_list.html", {
+    logs = (
+        ImportLog.objects
+        .all()
+        .order_by("-imported_at")
+    )
+
+    total_imported = sum(log.imported_count for log in logs)
+    total_skipped = sum(log.skipped_count for log in logs)
+    total_errors = sum(log.error_count for log in logs)
+
+    context = {
         "logs": logs,
-    })
+        "total_imported": total_imported,
+        "total_skipped": total_skipped,
+        "total_errors": total_errors,
+    }
+
+    return render(
+        request,
+        "banking/import_log_list.html",
+        context,
+    )
 
 
