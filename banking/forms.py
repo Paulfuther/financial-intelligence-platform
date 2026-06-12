@@ -4,6 +4,8 @@ ACCOUNT_CHOICES = [
     ("Personal", "Personal"),
     ("Corporate Bank", "Corporate Bank"),
     ("Corporate Credit Card", "Corporate Credit Card"),
+    ("Capital One Card", "Capital One Card"),
+    ("Canadian Tire Mastercard", "Canadian Tire Mastercard"),
 ]
 
 

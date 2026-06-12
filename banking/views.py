@@ -400,7 +400,14 @@ def import_bank_csv(request):
             first_line = decoded_file[0]
             delimiter = "\t" if "\t" in first_line else ","
 
-            if first_line.lower().startswith("transaction_date"):
+            first_line_lower = first_line.lower()
+
+            has_header = (
+                first_line_lower.startswith("transaction_date")
+                or first_line_lower.startswith("transaction date")
+            )
+
+            if has_header:
                 reader = csv.DictReader(decoded_file, delimiter=delimiter)
             else:
                 reader = csv.DictReader(
@@ -415,14 +422,71 @@ def import_bank_csv(request):
             latest_transaction_date = None
 
             for row_number, row in enumerate(reader, start=1):
+                # Standard export format
                 date_text = row.get("transaction_date") or row.get("date")
                 description = (row.get("description") or "").strip()
                 dr = parse_money(row.get("dr"))
                 cr = parse_money(row.get("cr"))
                 balance = parse_money(row.get("balance"))
-
                 category = row.get("category") or "Uncategorized"
                 existing_hash = row.get("import_hash")
+
+                # Canadian Tire format
+                if row.get("TRANSACTION DATE"):
+                    date_text = row.get("TRANSACTION DATE")
+                    description = (row.get("DESCRIPTION") or "").strip()
+
+                    amount = parse_money(row.get("AMOUNT"))
+                    card_category = (row.get("Category") or "").strip()
+
+                    if amount is not None and amount > 0:
+                        dr = amount
+                        cr = None
+                    elif amount is not None and amount < 0:
+                        dr = None
+                        cr = abs(amount)
+
+                    balance = None
+                    category = card_category or "Uncategorized"
+                    existing_hash = None
+
+                category_map = {
+                    "Grocery": "Groceries",
+                    "Grocery Other": "Groceries",
+                    "Restaurant": "Eating Out",
+                    "Pharmacy": "Medical",
+                    "Home stores": "Household",
+                    "Business services": "Subscriptions",
+                    "Gas": "Gas",
+
+                    # Capital One
+                    "Dining": "Eating Out",
+                    "Gas/Automotive": "Gas",
+                    "Fee/Interest Charge": "Interest",
+                    "Payment/Credit": "Credit Card Payment",
+                    "Merchandise": "Shopping",
+                    "Internet": "Online Shopping",
+                    "Other Services": "Subscriptions",
+                    "Other Travel": "Travel",
+                    "Car Rental": "Travel",
+                    "Insurance": "Insurance",
+                }
+
+                # Capital One format
+                if row.get("Transaction Date") and row.get("Card No."):
+                    date_text = row.get("Transaction Date")
+                    description = (row.get("Description") or "").strip()
+
+                    dr = parse_money(row.get("Debit"))
+                    cr = parse_money(row.get("Credit"))
+                    balance = None
+
+                    capone_category = (row.get("Category") or "").strip()
+                    category = capone_category or "Uncategorized"
+
+                    existing_hash = None
+
+                category = category_map.get(category, category)
 
                 transaction_date = parse_date(date_text)
 
