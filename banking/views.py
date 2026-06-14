@@ -7,7 +7,8 @@ import hashlib
 from decimal import Decimal, InvalidOperation
 from datetime import datetime
 from django.contrib import messages
-
+import calendar
+from django.db.models import Q
 
 from .forms import BankImportForm
 
@@ -137,7 +138,10 @@ def dashboard(request):
 
 
 def rules_management(request):
+    uncat_q = request.GET.get("uncat_q", "").strip()
+    uncat_sort = request.GET.get("uncat_sort", "total")
     if request.method == "POST":
+         
         keyword = request.POST.get("keyword", "").strip()
         category = request.POST.get("category", "").strip()
 
@@ -166,14 +170,33 @@ def rules_management(request):
 
     uncategorized = (
         BankTransaction.objects
-        .filter(category="Uncategorized")
+        .filter(
+            Q(category="Uncategorized") |
+            Q(category="") |
+            Q(category__isnull=True)
+        )
+    )
+
+    if uncat_q:
+        uncategorized = uncategorized.filter(description__icontains=uncat_q)
+
+    uncategorized = (
+        uncategorized
         .values("description")
         .annotate(
             rows=Count("id"),
             total_dr=Sum("dr"),
         )
-        .order_by("-total_dr")[:100]
     )
+
+    if uncat_sort == "description":
+        uncategorized = uncategorized.order_by("description")
+    elif uncat_sort == "rows":
+        uncategorized = uncategorized.order_by("-rows")
+    else:
+        uncategorized = uncategorized.order_by("-total_dr")
+
+    uncategorized = uncategorized[:200]
 
     category_rollup = (
         BankTransaction.objects
@@ -204,6 +227,8 @@ def rules_management(request):
         "categories": categories,
         "uncategorized": uncategorized,
         "category_rollup": category_rollup,
+        "uncat_q": uncat_q,
+        "uncat_sort": uncat_sort,
     }
 
     return render(request, "banking/rules_management.html", context)
@@ -580,4 +605,499 @@ def import_log_list(request):
         context,
     )
 
+def vehicle_summary(request):
+    year = request.GET.get("year")
 
+    vehicle_categories = [
+        "Gas",
+        "Vehicle Repairs",
+        "Vehicle Maintenance",
+        "Vehicle Insurance",
+        "Car Payment",
+        
+    ]
+
+    transactions = BankTransaction.objects.filter(
+        category__in=vehicle_categories
+    )
+
+    if year:
+        transactions = transactions.filter(transaction_date__year=year)
+
+    years = (
+        BankTransaction.objects
+        .annotate(year_value=ExtractYear("transaction_date"))
+        .values_list("year_value", flat=True)
+        .distinct()
+        .order_by("-year_value")
+    )
+
+    category_summary = (
+        transactions
+        .values("category")
+        .annotate(
+            total=Sum("dr"),
+            count=Count("id"),
+        )
+        .order_by("-total")
+    )
+
+    monthly_summary = (
+        transactions
+        .annotate(
+            year_value=ExtractYear("transaction_date"),
+            month_value=ExtractMonth("transaction_date"),
+        )
+        .values("year_value", "month_value")
+        .annotate(total=Sum("dr"))
+        .order_by("year_value", "month_value")
+    )
+
+    largest_expense = (
+        transactions
+        .exclude(dr__isnull=True)
+        .order_by("-dr")
+        .first()
+    )
+
+    top_transactions = (
+        transactions
+        .exclude(dr__isnull=True)
+        .order_by("-dr")[:10]
+    )
+
+    account_summary = (
+        transactions
+        .values("account_name")
+        .annotate(
+            total=Sum("dr"),
+            count=Count("id"),
+        )
+        .order_by("-total")
+    )
+
+    for row in monthly_summary:
+        month_name = calendar.month_abbr[row["month_value"]]
+
+        row["month_name"] = month_name
+
+        row["chart_label"] = (
+            f"{month_name} "
+            f"{str(row['year_value'])[-2:]}"
+        )
+
+    highest_month = None
+
+    if monthly_summary:
+        highest_month = max(
+            monthly_summary,
+            key=lambda x: x["total"] or 0
+        )
+
+
+    total_cost = transactions.aggregate(total=Sum("dr"))["total"] or 0
+
+    for row in category_summary:
+        if total_cost:
+            row["percent"] = (row["total"] or 0) / total_cost * 100
+        else:
+            row["percent"] = 0
+
+    transaction_count = transactions.count()
+
+    months_count = monthly_summary.count() or 1
+    monthly_average = total_cost / months_count
+
+    context = {
+        "selected_year": year,
+        "years": years,
+        "vehicle_categories": vehicle_categories,
+        "category_summary": category_summary,
+        "monthly_summary": monthly_summary,
+        "total_cost": total_cost,
+        "transaction_count": transaction_count,
+        "monthly_average": monthly_average,
+        "largest_expense": largest_expense,
+        "top_transactions": top_transactions,
+        "account_summary": account_summary,
+        "highest_month": highest_month,
+    }
+
+    return render(request, "banking/vehicle_summary.html", context)
+
+
+# Helper Funciton for food summary
+
+def normalize_food_vendor(description):
+    desc = (description or "").upper()
+
+    if "STARBUCKS" in desc:
+        return "Starbucks"
+
+    if "DOORDASH" in desc or "DD/" in desc:
+        return "DoorDash"
+
+    if "TIM HORTONS" in desc:
+        return "Tim Hortons"
+
+    if "MCDONALD" in desc:
+        return "McDonald's"
+
+    if "LCBO" in desc:
+        return "LCBO"
+
+    if "BEER STORE" in desc:
+        return "Beer Store"
+
+    if "PIZZA" in desc:
+        return "Pizza"
+
+    if "HARVEY" in desc:
+        return "Harvey's"
+
+    if "WENDY" in desc:
+        return "Wendy's"
+    
+    if "SHELB" in desc:
+        return "Shelby's"
+
+    if "MR SUB" in desc:
+        return "Mr. Sub"
+    
+    if "ANGELO" in desc:
+        return "Angelo's"
+    
+    if "LITTLE CAESAR" in desc:
+        return "Little Ceasar's"
+
+    if "OSMO" in desc:
+        return "Osmow's"
+    
+    if "A W STORE" in desc:
+        return "A and W"
+
+    return description[:35]
+
+# ------------------------------ #
+
+def food_summary(request):
+    year = request.GET.get("year")
+
+    food_categories = [
+        "Eating Out",
+        "Coffee",
+    ]
+
+    transactions = BankTransaction.objects.filter(
+        category__in=food_categories
+    )
+
+    if year:
+        transactions = transactions.filter(transaction_date__year=year)
+
+    years = (
+        BankTransaction.objects
+        .annotate(year_value=ExtractYear("transaction_date"))
+        .values_list("year_value", flat=True)
+        .distinct()
+        .order_by("-year_value")
+    )
+
+    category_summary = (
+        transactions
+        .values("category")
+        .annotate(
+            total=Sum("dr"),
+            count=Count("id"),
+        )
+        .order_by("-total")
+    )
+
+    total_cost = transactions.aggregate(total=Sum("dr"))["total"] or 0
+    transaction_count = transactions.count()
+
+    for row in category_summary:
+        row["percent"] = ((row["total"] or 0) / total_cost * 100) if total_cost else 0
+
+    monthly_summary = (
+        transactions
+        .annotate(
+            year_value=ExtractYear("transaction_date"),
+            month_value=ExtractMonth("transaction_date"),
+        )
+        .values("year_value", "month_value")
+        .annotate(total=Sum("dr"))
+        .order_by("year_value", "month_value")
+    )
+
+
+    for row in monthly_summary:
+        month_name = calendar.month_abbr[row["month_value"]]
+        row["month_name"] = month_name
+        row["chart_label"] = f"{month_name} {str(row['year_value'])[-2:]}"
+
+    months_count = monthly_summary.count() or 1
+    monthly_average = total_cost / months_count
+
+    largest_expense = (
+        transactions
+        .exclude(dr__isnull=True)
+        .order_by("-dr")
+        .first()
+    )
+
+    top_transactions = (
+        transactions
+        .exclude(dr__isnull=True)
+        .order_by("-dr")[:10]
+    )
+
+    account_summary = (
+        transactions
+        .values("account_name")
+        .annotate(
+            total=Sum("dr"),
+            count=Count("id"),
+        )
+        .order_by("-total")
+    )
+
+    highest_month = None
+
+    if monthly_summary:
+        highest_month = max(
+            monthly_summary,
+            key=lambda x: x["total"] or 0
+        )
+
+    vendor_totals = {}
+
+    for tx in transactions:
+        vendor = normalize_food_vendor(tx.description)
+
+        if vendor not in vendor_totals:
+            vendor_totals[vendor] = {
+                "count": 0,
+                "total": 0,
+            }
+
+        vendor_totals[vendor]["count"] += 1
+        vendor_totals[vendor]["total"] += float(tx.dr or 0)
+
+    vendor_summary = sorted(
+        [
+            {
+                "vendor": vendor,
+                "count": data["count"],
+                "total": data["total"],
+            }
+            for vendor, data in vendor_totals.items()
+        ],
+        key=lambda x: x["total"],
+        reverse=True,
+    )[:15]
+
+
+    context = {
+        "selected_year": year,
+        "years": years,
+        "category_summary": category_summary,
+        "monthly_summary": monthly_summary,
+        "total_cost": total_cost,
+        "transaction_count": transaction_count,
+        "monthly_average": monthly_average,
+        "largest_expense": largest_expense,
+        "top_transactions": top_transactions,
+        "account_summary": account_summary,
+        "highest_month": highest_month,
+        "vendor_summary": vendor_summary,
+    }
+
+    return render(request, "banking/food_summary.html", context)
+
+# ----- Vendors -------
+
+def normalize_subscription_vendor(description):
+    desc = (description or "").upper()
+
+    if "DOCUSIGN" in desc:
+        return "DocuSign"
+
+    if "INTUIT" in desc or "QBOOK" in desc:
+        return "QuickBooks"
+
+    if "LINODE" in desc or "AKAMAI" in desc:
+        return "Linode"
+
+    if "MICROSOFT" in desc:
+        return "Microsoft"
+
+    if "OPENAI" in desc or "CHATGPT" in desc:
+        return "OpenAI"
+
+    if "TWILIO" in desc:
+        return "Twilio"
+
+    if "SENDGRID" in desc:
+        return "SendGrid"
+
+    if "AMAZON.CA PRIME" in desc or "AMAZON PRIME" in desc:
+        return "Amazon Prime"
+
+    if "APPLE.COM/BILL" in desc:
+        return "Apple Services"
+
+    if "GOOGLE" in desc:
+        return "Google"
+
+    if "GODADDY" in desc:
+        return "GoDaddy"
+
+    if "ROGERS" in desc:
+        return "Rogers"
+    
+    if "RGRS" in desc:
+        return "Rogers"
+    
+    if "ADOBE" in desc:
+        return "Adobe"
+    
+    if "MEDIUM" in desc:
+        return "Medium"
+    
+    if "NETFLIX" in desc:
+        return "Netflix"
+
+    return description[:35]
+
+# ------------------------------- 
+
+def subscription_summary(request):
+    year = request.GET.get("year")
+
+    subscription_categories = [
+        "Software",
+        "Subscriptions",
+        "Cloud Services",
+        "Domain Hosting",
+        "AI Services",
+        "Telecommunications",
+        "Apple Services",
+    ]
+
+    transactions = BankTransaction.objects.filter(
+        category__in=subscription_categories
+    )
+
+    if year:
+        transactions = transactions.filter(transaction_date__year=year)
+
+    years = (
+        BankTransaction.objects
+        .annotate(year_value=ExtractYear("transaction_date"))
+        .values_list("year_value", flat=True)
+        .distinct()
+        .order_by("-year_value")
+    )
+
+    category_summary = (
+        transactions
+        .values("category")
+        .annotate(
+            total=Sum("dr"),
+            count=Count("id"),
+        )
+        .order_by("-total")
+    )
+
+    total_cost = transactions.aggregate(total=Sum("dr"))["total"] or 0
+    transaction_count = transactions.count()
+
+    for row in category_summary:
+        row["percent"] = ((row["total"] or 0) / total_cost * 100) if total_cost else 0
+
+    monthly_summary = (
+        transactions
+        .annotate(
+            year_value=ExtractYear("transaction_date"),
+            month_value=ExtractMonth("transaction_date"),
+        )
+        .values("year_value", "month_value")
+        .annotate(total=Sum("dr"))
+        .order_by("year_value", "month_value")
+    )
+
+
+    for row in monthly_summary:
+        month_name = calendar.month_abbr[row["month_value"]]
+        row["month_name"] = month_name
+        row["chart_label"] = f"{month_name} {str(row['year_value'])[-2:]}"
+
+    months_count = monthly_summary.count() or 1
+    monthly_average = total_cost / months_count
+
+    largest_expense = (
+        transactions
+        .exclude(dr__isnull=True)
+        .order_by("-dr")
+        .first()
+    )
+
+    top_transactions = (
+        transactions
+        .exclude(dr__isnull=True)
+        .order_by("-dr")[:15]
+    )
+
+    account_summary = (
+        transactions
+        .values("account_name")
+        .annotate(
+            total=Sum("dr"),
+            count=Count("id"),
+        )
+        .order_by("-total")
+    )
+
+    vendor_totals = {}
+
+    for tx in transactions:
+        vendor = normalize_subscription_vendor(tx.description)
+
+        if vendor not in vendor_totals:
+            vendor_totals[vendor] = {
+                "count": 0,
+                "total": 0,
+            }
+
+        vendor_totals[vendor]["count"] += 1
+        vendor_totals[vendor]["total"] += float(tx.dr or 0)
+
+    vendor_summary = sorted(
+        [
+            {
+                "vendor": vendor,
+                "count": data["count"],
+                "total": data["total"],
+            }
+            for vendor, data in vendor_totals.items()
+        ],
+        key=lambda x: x["total"],
+        reverse=True,
+    )[:15]
+
+    context = {
+        "selected_year": year,
+        "years": years,
+        "category_summary": category_summary,
+        "monthly_summary": monthly_summary,
+        "total_cost": total_cost,
+        "transaction_count": transaction_count,
+        "monthly_average": monthly_average,
+        "largest_expense": largest_expense,
+        "top_transactions": top_transactions,
+        "account_summary": account_summary,
+        "vendor_summary": vendor_summary,
+    }
+
+    return render(request, "banking/subscription_summary.html", context)

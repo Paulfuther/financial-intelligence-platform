@@ -102,10 +102,10 @@
               {% for row in category_rollup %}
                 <tr>
                   <td>
-    <a href="{% url 'banking:category_detail' row.category %}">
-        {{ row.category }}
-    </a>
-</td>
+                    <a href="{% url 'banking:category_detail' row.category %}">
+                      {{ row.category }}
+                    </a>
+                  </td>
                   <td class="text-end">{{ row.rule_count }}</td>
                   <td class="text-end">{{ row.transaction_count }}</td>
                   <td class="text-end">${{ row.total_spend|floatformat:2 }}</td>
@@ -220,7 +220,59 @@
     <div class="col-lg-7">
       <div class="card shadow-sm border-0">
         <div class="card-body">
-          <h5 class="mb-3">Uncategorized Vendors</h5>
+
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div>
+              <h5 class="mb-0">Uncategorized Vendors</h5>
+              <div class="text-muted small">
+                Search and sort vendors that still need rules
+              </div>
+            </div>
+          </div>
+
+          <form method="get" class="border rounded bg-light p-3 mb-3">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-6">
+                <label class="form-label small text-muted">Search vendor</label>
+                <input
+                  type="text"
+                  name="uncat_q"
+                  class="form-control form-control-sm"
+                  placeholder="Example: Google, Apple, Petro"
+                  value="{{ uncat_q }}"
+                >
+              </div>
+
+              <div class="col-md-4">
+                <label class="form-label small text-muted">Sort</label>
+                <select name="uncat_sort" class="form-select form-select-sm">
+                  <option value="total" {% if uncat_sort == "total" %}selected{% endif %}>
+                    Total spend
+                  </option>
+                  <option value="rows" {% if uncat_sort == "rows" %}selected{% endif %}>
+                    Transaction count
+                  </option>
+                  <option value="description" {% if uncat_sort == "description" %}selected{% endif %}>
+                    Alphabetical
+                  </option>
+                </select>
+              </div>
+
+              <div class="col-md-2">
+                <button class="btn btn-sm btn-outline-primary w-100" type="submit">
+                  Search
+                </button>
+              </div>
+            </div>
+
+            {% if uncat_q %}
+              <div class="mt-2">
+                <a href="{% url 'banking:rules_management' %}" class="small text-decoration-none">
+                  Clear search
+                </a>
+              </div>
+            {% endif %}
+          </form>
 
           <div class="table-responsive scroll-card">
             <table class="table table-sm align-middle">
@@ -280,6 +332,7 @@
 
             </table>
           </div>
+
         </div>
       </div>
     </div>

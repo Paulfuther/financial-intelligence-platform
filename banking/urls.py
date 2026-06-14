@@ -25,4 +25,7 @@ urlpatterns = [
     views.category_detail,
     name="category_detail",
 ),
+    path("reports/vehicle/", views.vehicle_summary, name="vehicle_summary"),
+    path("reports/food/", views.food_summary, name="food_summary"),
+    path("reports/subscriptions/", views.subscription_summary, name="subscription_summary"),
 ]
