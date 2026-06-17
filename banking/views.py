@@ -413,172 +413,7 @@ def apply_category_rules():
         ).update(category=rule.category)
 
 
-def import_bank_csv(request):
-    if request.method == "POST":
-        form = BankImportForm(request.POST, request.FILES)
 
-        if form.is_valid():
-            csv_file = request.FILES["csv_file"]
-            account_name = form.cleaned_data["account_name"]
-            decoded_file = csv_file.read().decode("utf-8-sig").splitlines()
-
-            first_line = decoded_file[0]
-            delimiter = "\t" if "\t" in first_line else ","
-
-            first_line_lower = first_line.lower()
-
-            has_header = (
-                first_line_lower.startswith("transaction_date")
-                or first_line_lower.startswith("transaction date")
-            )
-
-            if has_header:
-                reader = csv.DictReader(decoded_file, delimiter=delimiter)
-            else:
-                reader = csv.DictReader(
-                    decoded_file,
-                    fieldnames=["date", "description", "dr", "cr", "balance"],
-                    delimiter=delimiter,
-                )
-
-            imported = 0
-            skipped = 0
-            errors = 0
-            latest_transaction_date = None
-
-            for row_number, row in enumerate(reader, start=1):
-                # Standard export format
-                date_text = row.get("transaction_date") or row.get("date")
-                description = (row.get("description") or "").strip()
-                dr = parse_money(row.get("dr"))
-                cr = parse_money(row.get("cr"))
-                balance = parse_money(row.get("balance"))
-                category = row.get("category") or "Uncategorized"
-                existing_hash = row.get("import_hash")
-
-                # Canadian Tire format
-                if row.get("TRANSACTION DATE"):
-                    date_text = row.get("TRANSACTION DATE")
-                    description = (row.get("DESCRIPTION") or "").strip()
-
-                    amount = parse_money(row.get("AMOUNT"))
-                    card_category = (row.get("Category") or "").strip()
-
-                    if amount is not None and amount > 0:
-                        dr = amount
-                        cr = None
-                    elif amount is not None and amount < 0:
-                        dr = None
-                        cr = abs(amount)
-
-                    balance = None
-                    category = card_category or "Uncategorized"
-                    existing_hash = None
-
-                category_map = {
-                    "Grocery": "Groceries",
-                    "Grocery Other": "Groceries",
-                    "Restaurant": "Eating Out",
-                    "Pharmacy": "Medical",
-                    "Home stores": "Household",
-                    "Business services": "Subscriptions",
-                    "Gas": "Gas",
-
-                    # Capital One
-                    "Dining": "Eating Out",
-                    "Gas/Automotive": "Gas",
-                    "Fee/Interest Charge": "Interest",
-                    "Payment/Credit": "Credit Card Payment",
-                    "Merchandise": "Shopping",
-                    "Internet": "Online Shopping",
-                    "Other Services": "Subscriptions",
-                    "Other Travel": "Travel",
-                    "Car Rental": "Travel",
-                    "Insurance": "Insurance",
-                }
-
-                # Capital One format
-                if row.get("Transaction Date") and row.get("Card No."):
-                    date_text = row.get("Transaction Date")
-                    description = (row.get("Description") or "").strip()
-
-                    dr = parse_money(row.get("Debit"))
-                    cr = parse_money(row.get("Credit"))
-                    balance = None
-
-                    capone_category = (row.get("Category") or "").strip()
-                    category = capone_category or "Uncategorized"
-
-                    existing_hash = None
-
-                category = category_map.get(category, category)
-
-                transaction_date = parse_date(date_text)
-
-                if transaction_date:
-                    if latest_transaction_date is None or transaction_date > latest_transaction_date:
-                        latest_transaction_date = transaction_date
-
-                if not transaction_date or not description:
-                    errors += 1
-                    continue
-
-                import_hash = existing_hash or build_hash(
-                    transaction_date,
-                    description,
-                    dr,
-                    cr,
-                    balance,
-                )
-
-                duplicate_exists = BankTransaction.objects.filter(
-                    account_name=account_name,
-                    transaction_date=transaction_date,
-                    description=description,
-                    dr=dr,
-                    cr=cr,
-                    balance=balance,
-                ).exists()
-
-                if duplicate_exists:
-                    skipped += 1
-                    continue
-
-                BankTransaction.objects.create(
-                    transaction_date=transaction_date,
-                    description=description,
-                    dr=dr,
-                    cr=cr,
-                    balance=balance,
-                    category=category,
-                    import_hash=import_hash,
-                    account_name=account_name,
-                )
-
-                imported += 1
-
-            apply_category_rules()
-
-            ImportLog.objects.create(
-                file_name=csv_file.name,
-                account_name=account_name,
-                imported_count=imported,
-                skipped_count=skipped,
-                error_count=errors,
-                latest_transaction_date=latest_transaction_date,
-            )
-
-            messages.success(
-                request,
-                f"Import complete. Imported: {imported}, skipped duplicates: {skipped}, errors: {errors}."
-            )
-
-            return redirect("banking:dashboard")
-
-    else:
-        form = BankImportForm()
-
-    return render(request, "banking/import_bank_csv.html", {"form": form})
 
 def import_log_list(request):
 
@@ -1101,3 +936,256 @@ def subscription_summary(request):
     }
 
     return render(request, "banking/subscription_summary.html", context)
+
+# ------ helper funciton for imports -----
+
+def parse_import_rows(csv_file, account_name):
+    decoded_file = csv_file.read().decode("utf-8-sig").splitlines()
+
+    first_line = decoded_file[0]
+    delimiter = "\t" if "\t" in first_line else ","
+
+    first_line_lower = first_line.lower()
+
+    has_header = (
+        first_line_lower.startswith("transaction_date")
+        or first_line_lower.startswith("transaction date")
+    )
+
+    if has_header:
+        reader = csv.DictReader(decoded_file, delimiter=delimiter)
+    else:
+        reader = csv.DictReader(
+            decoded_file,
+            fieldnames=["date", "description", "dr", "cr", "balance"],
+            delimiter=delimiter,
+        )
+
+    valid_rows = []
+    duplicate_rows = []
+    error_rows = []
+
+    accounts_requiring_balance = [
+        "Personal Account",
+        "Corporate Bank Account",
+        "Corporate Credit Card",
+    ]
+
+    category_map = {
+        "Grocery": "Groceries",
+        "Grocery Other": "Groceries",
+        "Restaurant": "Eating Out",
+        "Pharmacy": "Medical",
+        "Home stores": "Household",
+        "Business services": "Subscriptions",
+        "Gas": "Gas",
+        "Dining": "Eating Out",
+        "Gas/Automotive": "Gas",
+        "Fee/Interest Charge": "Interest",
+        "Payment/Credit": "Credit Card Payment",
+        "Merchandise": "Shopping",
+        "Internet": "Online Shopping",
+        "Other Services": "Subscriptions",
+        "Other Travel": "Travel",
+        "Car Rental": "Travel",
+        "Insurance": "Insurance",
+    }
+
+    for row_number, row in enumerate(reader, start=1):
+        date_text = row.get("transaction_date") or row.get("date")
+        description = (row.get("description") or "").strip()
+        dr = parse_money(row.get("dr"))
+        cr = parse_money(row.get("cr"))
+        balance = parse_money(row.get("balance"))
+        category = row.get("category") or "Uncategorized"
+        existing_hash = row.get("import_hash")
+
+        # Canadian Tire
+        if row.get("TRANSACTION DATE"):
+            date_text = row.get("TRANSACTION DATE")
+            description = (row.get("DESCRIPTION") or "").strip()
+            amount = parse_money(row.get("AMOUNT"))
+            card_category = (row.get("Category") or "").strip()
+
+            if amount is not None and amount > 0:
+                dr = amount
+                cr = None
+            elif amount is not None and amount < 0:
+                dr = None
+                cr = abs(amount)
+
+            balance = None
+            category = card_category or "Uncategorized"
+            existing_hash = None
+
+        # Capital One
+        if row.get("Transaction Date") and row.get("Card No."):
+            date_text = row.get("Transaction Date")
+            description = (row.get("Description") or "").strip()
+            dr = parse_money(row.get("Debit"))
+            cr = parse_money(row.get("Credit"))
+            balance = None
+            category = (row.get("Category") or "").strip() or "Uncategorized"
+            existing_hash = None
+
+        category = category_map.get(category, category)
+        transaction_date = parse_date(date_text)
+
+        row_errors = []
+
+        if not transaction_date:
+            row_errors.append("Missing or invalid date")
+
+        if not description:
+            row_errors.append("Missing description")
+
+        if account_name in accounts_requiring_balance and balance is None:
+            row_errors.append("Missing balance")
+
+        if row_errors:
+            error_rows.append({
+                "row_number": row_number,
+                "errors": row_errors,
+                "row": row,
+            })
+            continue
+
+        import_hash = existing_hash or build_hash(
+            transaction_date,
+            description,
+            dr,
+            cr,
+            balance,
+        )
+
+        clean_row = {
+            "transaction_date": str(transaction_date),
+            "description": description,
+            "dr": str(dr) if dr is not None else "",
+            "cr": str(cr) if cr is not None else "",
+            "balance": str(balance) if balance is not None else "",
+            "category": category,
+            "import_hash": import_hash,
+            "account_name": account_name,
+        }
+
+        duplicate_exists = BankTransaction.objects.filter(
+            account_name=account_name,
+            transaction_date=transaction_date,
+            description=description,
+            dr=dr,
+            cr=cr,
+            balance=balance,
+        ).exists()
+
+        if duplicate_exists:
+            duplicate_rows.append(clean_row)
+        else:
+            valid_rows.append(clean_row)
+
+    return valid_rows, duplicate_rows, error_rows
+
+# ------ End of Import Helper ---------
+
+def import_bank_csv(request):
+    if request.method == "POST":
+        form = BankImportForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            csv_file = request.FILES["csv_file"]
+            account_name = form.cleaned_data["account_name"]
+
+            valid_rows, duplicate_rows, error_rows = parse_import_rows(
+                csv_file,
+                account_name,
+            )
+
+            request.session["pending_import_rows"] = valid_rows
+            request.session["pending_import_account"] = account_name
+            request.session["pending_import_file"] = csv_file.name
+
+
+            return render(request, "banking/import_preview.html", {
+                "valid_rows": valid_rows,
+                "duplicate_rows": duplicate_rows,
+                "error_rows": error_rows,
+                "account_name": account_name,
+                "file_name": csv_file.name,
+            })
+
+    else:
+        form = BankImportForm()
+
+    return render(request, "banking/import_bank_csv.html", {"form": form})
+
+
+def confirm_bank_csv_import(request):
+    if request.method != "POST":
+        return redirect("banking:import_bank_csv")
+
+    rows = request.session.get("pending_import_rows", [])
+    account_name = request.session.get("pending_import_account")
+    file_name = request.session.get("pending_import_file")
+
+    imported = 0
+    skipped = 0
+    errors = 0
+    latest_transaction_date = None
+
+    for row in rows:
+        transaction_date = parse_date(row["transaction_date"])
+
+        dr = parse_money(row["dr"])
+        cr = parse_money(row["cr"])
+        balance = parse_money(row["balance"])
+
+        duplicate_exists = BankTransaction.objects.filter(
+            account_name=row["account_name"],
+            transaction_date=transaction_date,
+            description=row["description"],
+            dr=dr,
+            cr=cr,
+            balance=balance,
+        ).exists()
+
+        if duplicate_exists:
+            skipped += 1
+            continue
+
+        BankTransaction.objects.create(
+            transaction_date=transaction_date,
+            description=row["description"],
+            dr=dr,
+            cr=cr,
+            balance=balance,
+            category=row["category"],
+            import_hash=row["import_hash"],
+            account_name=row["account_name"],
+        )
+
+        imported += 1
+
+        if latest_transaction_date is None or transaction_date > latest_transaction_date:
+            latest_transaction_date = transaction_date
+
+    apply_category_rules()
+
+    ImportLog.objects.create(
+        file_name=file_name,
+        account_name=account_name,
+        imported_count=imported,
+        skipped_count=skipped,
+        error_count=errors,
+        latest_transaction_date=latest_transaction_date,
+    )
+
+    request.session.pop("pending_import_rows", None)
+    request.session.pop("pending_import_account", None)
+    request.session.pop("pending_import_file", None)
+
+    messages.success(
+        request,
+        f"Import complete. Imported: {imported}, skipped duplicates: {skipped}, errors: {errors}."
+    )
+
+    return redirect("banking:dashboard")

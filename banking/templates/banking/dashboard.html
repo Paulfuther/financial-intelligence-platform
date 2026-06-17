@@ -23,9 +23,21 @@
     }
 
     .table-card {
-      max-height: 650px;
+      max-height: 350px;
       overflow-y: auto;
     }
+
+    .table-scroll {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.table-scroll thead th {
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 10;
+}
   </style>
 </head>
 
@@ -260,8 +272,9 @@
         <div class="card-body">
           <h5 class="mb-3">Category Summary</h5>
 
-          <div class="table-responsive">
-            <table class="table table-sm align-middle">
+          <div class="table-responsive table-scroll">
+
+    <table class="table table-sm table-hover mb-0">
               <thead>
                 <tr>
                   <th>Category</th>

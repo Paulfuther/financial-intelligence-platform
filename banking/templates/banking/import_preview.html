@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Import Preview</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+    rel="stylesheet">
+
+  <style>
+    .page-container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .table-scroll {
+      max-height: 520px;
+      overflow-y: auto;
+    }
+
+    .sticky-top {
+      top: 0;
+      z-index: 2;
+    }
+  </style>
+</head>
+
+<body class="bg-light">
+
+<div class="page-container py-4 px-3">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h1 class="mb-1">Import Preview</h1>
+      <div class="text-muted">{{ account_name }} · {{ file_name }}</div>
+    </div>
+
+    <a href="{% url 'banking:import_bank_csv' %}" class="btn btn-outline-secondary">
+      Cancel
+    </a>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <div class="text-muted small">Ready to Import</div>
+          <div class="display-6 text-success">{{ valid_rows|length }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <div class="text-muted small">Duplicates</div>
+          <div class="display-6 text-warning">{{ duplicate_rows|length }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card shadow-sm border-0">
+        <div class="card-body">
+          <div class="text-muted small">Errors</div>
+          <div class="display-6 text-danger">{{ error_rows|length }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if error_rows %}
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-danger text-white">
+      Errors — these rows will not import
+    </div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Row</th>
+            <th>Errors</th>
+            <th>Raw Data</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in error_rows %}
+          <tr>
+            <td>{{ item.row_number }}</td>
+            <td>
+              {% for error in item.errors %}
+                <span class="badge bg-danger">{{ error }}</span>
+              {% endfor %}
+            </td>
+            <td class="small text-muted">{{ item.row }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if duplicate_rows %}
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-warning d-flex justify-content-between">
+        <span>Duplicates — these rows will be skipped</span>
+        <span class="badge bg-dark">
+            {{ duplicate_rows|length }} duplicates
+        </span>
+    </div>
+
+    <div class="card-body">
+        <p class="text-muted mb-3">
+            Showing first 10 duplicates.
+        </p>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+        <thead class="table-light">
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th class="text-end">DR</th>
+            <th class="text-end">CR</th>
+            <th class="text-end">Balance</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in duplicate_rows|slice:":10" %}
+          <tr>
+            <td>{{ row.transaction_date }}</td>
+            <td>{{ row.description }}</td>
+            <td class="text-end">{{ row.dr }}</td>
+            <td class="text-end">{{ row.cr }}</td>
+            <td class="text-end">{{ row.balance }}</td>
+            <td>{{ row.category }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% if duplicate_rows|length > 10 %}
+<div class="alert alert-warning mt-3 mb-0">
+    {{ duplicate_rows|length|add:"-10" }}
+    additional duplicates not shown.
+</div>
+{% endif %}
+  {% endif %}
+
+  <div class="card shadow-sm border-0 mb-4">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+      <strong>Rows Ready to Import</strong>
+      <span class="badge bg-success">{{ valid_rows|length }} rows</span>
+    </div>
+
+    <div class="table-responsive table-scroll">
+      <table class="table table-sm table-hover align-middle mb-0">
+        <thead class="table-light sticky-top">
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th class="text-end">DR</th>
+            <th class="text-end">CR</th>
+            <th class="text-end">Balance</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for row in valid_rows %}
+          <tr>
+            <td>{{ row.transaction_date }}</td>
+            <td>{{ row.description }}</td>
+            <td class="text-end">{{ row.dr }}</td>
+            <td class="text-end">{{ row.cr }}</td>
+            <td class="text-end">{{ row.balance }}</td>
+            <td>
+            {% if row.category == "Uncategorized" %}
+                <span class="badge bg-danger">Uncategorized</span>
+            {% else %}
+                <span class="badge bg-secondary">{{ row.category }}</span>
+            {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="6" class="text-center text-muted py-4">
+              No new rows to import.
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-end gap-2">
+    <a href="{% url 'banking:import_bank_csv' %}" class="btn btn-outline-secondary">
+      Cancel
+    </a>
+
+    <form method="post" action="{% url 'banking:confirm_bank_csv_import' %}">
+      {% csrf_token %}
+      <button type="submit"
+              class="btn btn-success"
+              {% if not valid_rows %}disabled{% endif %}>
+        Confirm Import {{ valid_rows|length }} Rows
+      </button>
+    </form>
+  </div>
+
+</div>
+
+</body>
+</html>

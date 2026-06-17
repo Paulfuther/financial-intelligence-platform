@@ -16,5 +16,8 @@ class BankImportForm(forms.Form):
     )
 
     csv_file = forms.FileField(
-        label="Bank CSV file",
-    )
+    widget=forms.ClearableFileInput(attrs={
+        "class": "form-control",
+        "accept": ".csv,.txt",
+    })
+)

@@ -28,4 +28,6 @@ urlpatterns = [
     path("reports/vehicle/", views.vehicle_summary, name="vehicle_summary"),
     path("reports/food/", views.food_summary, name="food_summary"),
     path("reports/subscriptions/", views.subscription_summary, name="subscription_summary"),
+    # path("import/", views.import_bank_csv_preview, name="import_bank_csv"),
+    path("import/confirm/", views.confirm_bank_csv_import, name="confirm_bank_csv_import"),
 ]
