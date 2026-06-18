@@ -89,21 +89,21 @@
 
       <a
         href="{% url 'banking:import_bank_csv' %}"
-        class="btn btn-primary"
+        class="btn btn-outline-secondary"
       >
         Import CSV
       </a>
 
       <a
         href="{% url 'banking:import_log_list' %}"
-        class="btn btn-outline-primary"
+        class="btn btn-outline-secondary"
       >
         Import Log
       </a>
 
       <a
         href="{% url 'banking:rules_management' %}"
-        class="btn btn-outline-primary"
+        class="btn btn-outline-secondary"
       >
         Rules
       </a>
@@ -115,17 +115,21 @@
         Reset
       </a>
 
-      <a href="{% url 'banking:vehicle_summary' %}" class="btn btn-outline-success">
+      <a href="{% url 'banking:vehicle_summary' %}" class="btn btn-outline-secondary">
         Vehicle Summary
       </a>
 
-      <a href="{% url 'banking:food_summary' %}" class="btn btn-outline-success">
+      <a href="{% url 'banking:food_summary' %}" class="btn btn-outline-secondary">
         Eating Out
       </a>
 
-      <a href="{% url 'banking:subscription_summary' %}" class="btn btn-outline-success">
+      <a href="{% url 'banking:subscription_summary' %}" class="btn btn-outline-secondary">
         Subscriptions
       </a>
+
+      <a href="{% url 'banking:debt_dashboard' %}" class="btn btn-outline-secondary">
+        Debt
+    </a>
 
     </div>
 

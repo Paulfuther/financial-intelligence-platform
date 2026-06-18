@@ -49,3 +49,43 @@ class ImportLog(models.Model):
         null=True,
         blank=True
     )
+
+
+class DebtAccount(models.Model):
+    DEBT_TYPES = [
+        ("credit_card", "Credit Card"),
+        ("loan", "Loan"),
+        ("line_of_credit", "Line of Credit"),
+        ("mortgage", "Mortgage"),
+        ("vehicle", "Vehicle Loan"),
+    ]
+
+    name = models.CharField(max_length=100)
+    debt_type = models.CharField(max_length=30, choices=DEBT_TYPES)
+    lender = models.CharField(max_length=100, blank=True)
+    current_balance = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    interest_rate = models.DecimalField(max_digits=6, decimal_places=3, null=True, blank=True)
+    minimum_payment = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    due_day = models.PositiveSmallIntegerField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+
+    starting_balance = models.DecimalField(
+    max_digits=12,
+    decimal_places=2,
+    default=0
+    )
+
+    tracking_start_date = models.DateField(
+        null=True,
+        blank=True
+    )
+
+    target_payoff_date = models.DateField(
+        null=True,
+        blank=True
+    )
+
+    is_payoff_mode = models.BooleanField(
+        default=False
+)

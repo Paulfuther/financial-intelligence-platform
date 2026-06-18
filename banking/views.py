@@ -9,9 +9,9 @@ from datetime import datetime
 from django.contrib import messages
 import calendar
 from django.db.models import Q
-
+from .models import DebtAccount
 from .forms import BankImportForm
-
+from datetime import date
 
 
 
@@ -1189,3 +1189,93 @@ def confirm_bank_csv_import(request):
     )
 
     return redirect("banking:dashboard")
+
+
+
+
+def debt_dashboard(request):
+    debts = DebtAccount.objects.filter(is_active=True)
+
+    total_debt = sum(d.current_balance for d in debts)
+
+    credit_card_debt = sum(
+        d.current_balance for d in debts if d.debt_type == "credit_card"
+    )
+
+    loan_debt = sum(
+        d.current_balance for d in debts if d.debt_type != "credit_card"
+    )
+
+    total_limit = sum(
+        d.credit_limit or 0 for d in debts if d.debt_type == "credit_card"
+    )
+
+    utilization = (
+        (credit_card_debt / total_limit) * 100
+        if total_limit > 0
+        else 0
+    )
+
+    available_credit = total_limit - credit_card_debt
+
+    payoff_accounts = []
+
+    today = date.today()
+
+    for debt in debts:
+        paid_down = 0
+        progress_percent = 0
+        months_remaining = None
+        required_monthly_payment = None
+
+        if debt.is_payoff_mode and debt.starting_balance:
+            paid_down = debt.starting_balance - debt.current_balance
+
+            if debt.starting_balance > 0:
+                progress_percent = (paid_down / debt.starting_balance) * 100
+
+        if debt.target_payoff_date and debt.current_balance > 0:
+            months_remaining = (
+                (debt.target_payoff_date.year - today.year) * 12
+                + (debt.target_payoff_date.month - today.month)
+            )
+
+            if months_remaining <= 0:
+                months_remaining = 1
+
+            balance = debt.current_balance
+            annual_rate = debt.interest_rate or 0
+            monthly_rate = (annual_rate / 100) / 12
+
+            if months_remaining > 0:
+                if monthly_rate > 0:
+                    required_monthly_payment = (
+                        balance * monthly_rate
+                    ) / (
+                        1 - (1 + monthly_rate) ** (-months_remaining)
+                    )
+                else:
+                    required_monthly_payment = balance / months_remaining
+            else:
+                required_monthly_payment = None
+
+        payoff_accounts.append({
+            "debt": debt,
+            "paid_down": paid_down,
+            "progress_percent": progress_percent,
+            "months_remaining": months_remaining,
+            "required_monthly_payment": required_monthly_payment,
+        })
+
+    context = {
+        "debts": debts,
+        "payoff_accounts": payoff_accounts,
+        "total_debt": total_debt,
+        "credit_card_debt": credit_card_debt,
+        "loan_debt": loan_debt,
+        "total_limit": total_limit,
+        "available_credit": available_credit,
+        "utilization": utilization,
+    }
+
+    return render(request, "banking/debt_dashboard.html", context)
