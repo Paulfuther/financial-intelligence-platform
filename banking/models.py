@@ -113,11 +113,9 @@ def apply_rule_to_transaction(transaction):
         transaction.category = "Uncategorized"
 
 
-def recategorize_all_transactions():
-    rules = CategoryRule.objects.all()
+class Category(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(default=True)
 
-    transactions = BankTransaction.objects.all()
-
-    for tx in transactions:
-        apply_rule_to_transaction(tx)
-        tx.save()
+    def __str__(self):
+        return self.name

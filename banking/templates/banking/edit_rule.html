@@ -48,9 +48,10 @@
           <label class="form-label">Category</label>
           <select name="category" class="form-select" required>
             {% for category in categories %}
-              <option value="{{ category }}" {% if rule.category == category %}selected{% endif %}>
-                {{ category }}
-              </option>
+            <option value="{{ category.name }}"
+                {% if rule.category == category.name %}selected{% endif %}>
+                {{ category.name }}
+            </option>
             {% endfor %}
           </select>
         </div>

@@ -152,8 +152,10 @@
               <select name="category" class="form-select" required>
                 <option value="">Choose category</option>
                 {% for category in categories %}
-                  <option value="{{ category }}">{{ category }}</option>
-                {% endfor %}
+    <option value="{{ category.name }}">
+        {{ category.name }}
+    </option>
+{% endfor %}
               </select>
             </div>
 

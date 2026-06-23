@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Sum, Count, Avg, Max
+from django.db.models import Sum, Count, Avg, Max, Min
 from django.db.models.functions import ExtractYear, ExtractMonth
-from .models import BankTransaction, CategoryRule, ImportLog
+from .models import BankTransaction, CategoryRule, ImportLog, Category
 import csv
 import hashlib
 from decimal import Decimal, InvalidOperation
@@ -12,6 +12,7 @@ from django.db.models import Q
 from .models import DebtAccount
 from .forms import BankImportForm
 from datetime import date
+
 
 
 
@@ -197,14 +198,9 @@ def rules_management(request):
 
     rules = CategoryRule.objects.all().order_by("-keyword")
 
-    categories = (
-        BankTransaction.objects
-        .exclude(category__isnull=True)
-        .exclude(category="")
-        .values_list("category", flat=True)
-        .distinct()
-        .order_by("category")
-    )
+    categories = Category.objects.filter(
+        is_active=True
+    ).order_by("name")
 
     uncategorized = (
         BankTransaction.objects
@@ -275,14 +271,9 @@ def rules_management(request):
 def edit_rule(request, rule_id):
     rule = get_object_or_404(CategoryRule, id=rule_id)
 
-    categories = (
-        BankTransaction.objects
-        .exclude(category__isnull=True)
-        .exclude(category="")
-        .values_list("category", flat=True)
-        .distinct()
-        .order_by("category")
-    )
+    categories = Category.objects.filter(
+        is_active=True
+    ).order_by("name")
 
     if request.method == "POST":
         keyword = request.POST.get("keyword", "").strip()
@@ -336,6 +327,8 @@ def rule_detail(request, rule_id):
 
 
 def category_detail(request, category):
+    start_date = request.GET.get("start_date")
+    end_date = request.GET.get("end_date")
 
     transactions = (
         BankTransaction.objects
@@ -343,11 +336,19 @@ def category_detail(request, category):
         .order_by("-transaction_date")
     )
 
+    if start_date:
+        transactions = transactions.filter(transaction_date__gte=start_date)
+
+    if end_date:
+        transactions = transactions.filter(transaction_date__lte=end_date)
+
     summary = transactions.aggregate(
         total_spend=Sum("dr"),
         transaction_count=Count("id"),
         average_spend=Avg("dr"),
         largest_spend=Max("dr"),
+        first_payment=Min("transaction_date"),
+        last_payment=Max("transaction_date"),
     )
 
     vendor_summary = (
@@ -357,10 +358,14 @@ def category_detail(request, category):
             transaction_count=Count("id"),
             total_spend=Sum("dr"),
         )
-        .order_by("-total_spend")
+        .order_by("-total_spend")[:10]
     )
 
-    rules = CategoryRule.objects.all().order_by("-keyword")
+    rules = (
+        CategoryRule.objects
+        .filter(category=category)
+        .order_by("-keyword")
+    )
 
     monthly_trend = (
         transactions
@@ -388,13 +393,11 @@ def category_detail(request, category):
         "summary": summary,
         "monthly_labels": monthly_labels,
         "monthly_totals": monthly_totals,
+        "start_date": start_date,
+        "end_date": end_date,
     }
 
-    return render(
-        request,
-        "banking/category_detail.html",
-        context,
-    )
+    return render(request, "banking/category_detail.html", context)
 
 
 def parse_money(value):
@@ -479,6 +482,7 @@ def vehicle_summary(request):
         "Vehicle Maintenance",
         "Vehicle Insurance",
         "Car Payment",
+        'Vehicle Loan Payment',
         
     ]
 
@@ -1324,3 +1328,41 @@ def debt_dashboard(request):
     }
 
     return render(request, "banking/debt_dashboard.html", context)
+
+
+
+
+def category_summary(request):
+    summary = (
+        BankTransaction.objects
+        .exclude(category__isnull=True)
+        .exclude(category="")
+        .exclude(category="Uncategorized")
+        .values("category")
+        .annotate(
+            transaction_count=Count("id"),
+            total_spend=Sum("dr"),
+            average_spend=Avg("dr"),
+            largest_spend=Max("dr"),
+        )
+        .order_by("category")
+    )
+
+    totals = (
+        BankTransaction.objects
+        .exclude(category__isnull=True)
+        .exclude(category="")
+        .exclude(category="Uncategorized")
+        .aggregate(
+            total_transactions=Count("id"),
+            grand_total=Sum("dr"),
+        )
+    )
+
+    return render(request, "banking/category_summary.html", {
+        "summary": summary,
+        "total_transactions": totals["total_transactions"] or 0,
+        "grand_total": totals["grand_total"] or 0,
+    })
+
+

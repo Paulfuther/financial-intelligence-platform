@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import BankTransaction
-from .models import DebtAccount
+from .models import DebtAccount, Category
 
 @admin.register(BankTransaction)
 class BankTransactionAdmin(admin.ModelAdmin):
@@ -42,3 +42,13 @@ class DebtAccountAdmin(admin.ModelAdmin):
     list_filter = ("debt_type", "is_payoff_mode", "is_active")
 
     search_fields = ("name", "lender")
+
+
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "is_active")
+    list_filter = ("is_active",)
+    search_fields = ("name",)
+    ordering = ("name",)

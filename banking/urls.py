@@ -31,4 +31,5 @@ urlpatterns = [
     # path("import/", views.import_bank_csv_preview, name="import_bank_csv"),
     path("import/confirm/", views.confirm_bank_csv_import, name="confirm_bank_csv_import"),
     path("debt/", views.debt_dashboard, name="debt_dashboard"),
+    path("reports/categories/", views.category_summary, name="category_summary"),
 ]
