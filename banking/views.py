@@ -136,6 +136,38 @@ def dashboard(request):
 
     return render(request, "banking/dashboard.html", context)
 
+def match_category(description, rules):
+    description = description.upper()
+
+    best_match = None
+    best_length = 0
+
+    for rule in rules:
+        keyword = rule.keyword.upper()
+
+        if keyword in description:
+            if len(keyword) > best_length:
+                best_match = rule
+                best_length = len(keyword)
+
+    if best_match:
+        return best_match.category
+
+    return None
+
+
+def apply_rule_to_transaction(tx):
+    rules = CategoryRule.objects.all()
+    rules = sorted(rules, key=lambda r: len(r.keyword), reverse=True)
+
+    tx_desc = tx.description.upper()
+
+    for rule in rules:
+        if rule.keyword.upper() in tx_desc:
+            tx.category = rule.category
+            return tx
+
+    return tx
 
 def rules_management(request):
     uncat_q = request.GET.get("uncat_q", "").strip()
@@ -151,13 +183,19 @@ def rules_management(request):
                 category=category,
             )
 
-            BankTransaction.objects.filter(
-                description__icontains=keyword
-            ).update(category=category)
+            transactions = BankTransaction.objects.filter(
+                Q(category="Uncategorized") |
+                Q(category="") |
+                Q(category__isnull=True)
+            )
+
+            for tx in transactions:
+                apply_rule_to_transaction(tx)
+                tx.save()
 
         return redirect("banking:rules_management")
 
-    rules = CategoryRule.objects.all().order_by("keyword")
+    rules = CategoryRule.objects.all().order_by("-keyword")
 
     categories = (
         BankTransaction.objects
@@ -297,8 +335,6 @@ def rule_detail(request, rule_id):
     })
 
 
-
-
 def category_detail(request, category):
 
     transactions = (
@@ -324,11 +360,7 @@ def category_detail(request, category):
         .order_by("-total_spend")
     )
 
-    rules = (
-        CategoryRule.objects
-        .filter(category=category)
-        .order_by("keyword")
-    )
+    rules = CategoryRule.objects.all().order_by("-keyword")
 
     monthly_trend = (
         transactions
@@ -411,8 +443,6 @@ def apply_category_rules():
             description__icontains=rule.keyword,
             category="Uncategorized",
         ).update(category=rule.category)
-
-
 
 
 def import_log_list(request):
@@ -809,6 +839,7 @@ def normalize_subscription_vendor(description):
 
 def subscription_summary(request):
     year = request.GET.get("year")
+    month = request.GET.get("month", "")
 
     subscription_categories = [
         "Software",
@@ -827,6 +858,9 @@ def subscription_summary(request):
     if year:
         transactions = transactions.filter(transaction_date__year=year)
 
+    if month:
+        transactions = transactions.filter(transaction_date__month=month)
+
     years = (
         BankTransaction.objects
         .annotate(year_value=ExtractYear("transaction_date"))
@@ -834,6 +868,12 @@ def subscription_summary(request):
         .distinct()
         .order_by("-year_value")
     )
+
+    month_transactions = transactions.order_by(
+        "-transaction_date",
+        "description"
+    )
+
 
     category_summary = (
         transactions
@@ -933,6 +973,11 @@ def subscription_summary(request):
         "top_transactions": top_transactions,
         "account_summary": account_summary,
         "vendor_summary": vendor_summary,
+        "months": MONTHS,
+
+        "selected_month": month,
+
+        "month_transactions": month_transactions,
     }
 
     return render(request, "banking/subscription_summary.html", context)

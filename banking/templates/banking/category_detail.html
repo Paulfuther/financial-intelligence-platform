@@ -36,7 +36,7 @@
     </div>
 
     <a
-      href="{% url 'banking:rules_management' %}"
+      href="{% url 'banking:subscription_summary' %}"
       class="btn btn-outline-secondary"
     >
       Back
@@ -89,32 +89,7 @@
     <div class="col-lg-4">
 
       <div class="card shadow-sm border-0 mb-4">
-        <div class="card-body">
-
-          <h5>Rules</h5>
-
-          <table class="table table-sm">
-            <thead>
-              <tr>
-                <th>Keyword</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {% for rule in rules %}
-                <tr>
-                  <td>{{ rule.keyword }}</td>
-                </tr>
-              {% empty %}
-                <tr>
-                  <td>No rules found</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-
-          </table>
-
-        </div>
+        
       </div>
 
       <div class="card shadow-sm border-0">

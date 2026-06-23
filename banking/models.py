@@ -89,3 +89,35 @@ class DebtAccount(models.Model):
     is_payoff_mode = models.BooleanField(
         default=False
 )
+    
+
+def apply_rule_to_transaction(transaction):
+    rules = CategoryRule.objects.all()
+
+    description = (transaction.description or "").upper()
+
+    best_match = None
+    best_length = 0
+
+    for rule in rules:
+        keyword = rule.keyword.upper()
+
+        if keyword in description:
+            if len(keyword) > best_length:
+                best_match = rule
+                best_length = len(keyword)
+
+    if best_match:
+        transaction.category = best_match.category
+    else:
+        transaction.category = "Uncategorized"
+
+
+def recategorize_all_transactions():
+    rules = CategoryRule.objects.all()
+
+    transactions = BankTransaction.objects.all()
+
+    for tx in transactions:
+        apply_rule_to_transaction(tx)
+        tx.save()
