@@ -5,6 +5,24 @@ app_name = "banking"
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path(
+
+        "dashboard/category-preview/",
+
+        views.category_transaction_preview,
+
+        name="category_transaction_preview",
+
+    ),
+    path(
+
+    "transactions/<int:transaction_id>/update-category/",
+
+    views.update_transaction_category,
+
+    name="update_transaction_category",
+
+),
     path("rules/", views.rules_management, name="rules_management"),
     path("rules/<int:rule_id>/edit/", views.edit_rule, name="edit_rule"),
     path(

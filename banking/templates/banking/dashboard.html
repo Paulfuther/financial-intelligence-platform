@@ -12,33 +12,387 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    .dashboard-container {
-      max-width: 1500px;
-      margin: 0 auto;
-    }
+  /* Dashboard layout */
 
-    .chart-box {
-      height: 320px;
-      max-height: 320px;
-    }
+  .dashboard-container {
+    max-width: 1500px;
+    margin: 0 auto;
+  }
 
-    .table-card {
-      max-height: 350px;
-      overflow-y: auto;
-    }
+  .chart-box {
+    height: 320px;
+    max-height: 320px;
+  }
 
-    .table-scroll {
+  .table-card {
+    max-height: 350px;
+    overflow-y: auto;
+  }
+
+  .table-scroll {
     max-height: 300px;
     overflow-y: auto;
-}
+  }
 
-.table-scroll thead th {
+  .table-scroll thead th {
     position: sticky;
     top: 0;
-    background: white;
     z-index: 10;
+    background-color: #fff;
+  }
+
+
+  /* Category table */
+
+  .category-preview-row {
+    cursor: pointer;
+  }
+
+  .category-preview-row td:first-child {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 4px;
+  }
+
+  .category-preview-row:hover td {
+    background-color: #f8f9fa;
+  }
+
+
+  /* Transaction preview window */
+
+  .transaction-preview {
+    position: fixed;
+    z-index: 1080;
+
+    display: none;
+    flex-direction: column;
+
+    width: min(620px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+
+    overflow: hidden;
+
+    background-color: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 0.85rem;
+    box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.18);
+  }
+
+  .transaction-preview.is-visible {
+    display: flex;
+  }
+
+
+  /* Draggable header */
+
+  .transaction-preview-header {
+    flex: 0 0 auto;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+
+    padding: 0.9rem 1rem;
+
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+
+    cursor: move;
+    user-select: none;
+    touch-action: none;
+  }
+
+  .transaction-preview-header.is-dragging {
+    cursor: grabbing;
+  }
+
+  .transaction-preview-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .transaction-preview-period {
+    margin-top: 0.15rem;
+    color: #6c757d;
+    font-size: 0.82rem;
+  }
+
+  .transaction-preview-drag-label {
+    color: #6c757d;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .transaction-preview-close {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #6c757d;
+    font-size: 1.35rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .transaction-preview-close:hover {
+    color: #212529;
+  }
+
+
+  /* Scrollable popup body */
+
+  .transaction-preview-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: 58vh;
+
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .transaction-preview-table thead th {
+    top: 0;
+  }
+
+  .transaction-preview-table {
+    width: calc(100% - 2rem);
+    margin: 0 1rem 1rem;
+    font-size: 0.85rem;
+  }
+
+  .transaction-preview-loading,
+  .transaction-preview-empty,
+  .transaction-preview-error {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: #6c757d;
+  }
+
+  .transaction-preview-error {
+    color: #b02a37;
+  }
+
+
+  /* Summary analysis */
+
+  .preview-analysis {
+    padding: 0.9rem 1rem;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .preview-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .preview-stat {
+    padding: 0.65rem;
+
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 0.65rem;
+  }
+
+  .preview-stat-label {
+    margin-bottom: 0.1rem;
+    color: #6c757d;
+    font-size: 0.72rem;
+  }
+
+  .preview-stat-value {
+    font-size: 0.92rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+
+  /* Preview sections */
+
+  .preview-section {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .preview-section-title {
+    margin-bottom: 0.65rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+
+  /* Spending trend */
+
+  .preview-trend {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+
+    height: 82px;
+    padding-top: 6px;
+  }
+
+  .preview-trend-bar {
+    flex: 1;
+    min-width: 5px;
+
+    background-color: #6c757d;
+    border-radius: 3px 3px 0 0;
+
+    opacity: 0.8;
+    transition: opacity 0.15s ease;
+  }
+
+  .preview-trend-bar:hover {
+    opacity: 1;
+  }
+
+  .preview-trend-caption {
+    display: flex;
+    justify-content: space-between;
+
+    margin-top: 0.35rem;
+
+    color: #6c757d;
+    font-size: 0.72rem;
+  }
+
+
+  /* Recurring vendors */
+
+  .recurring-vendor-table {
+    margin-bottom: 0;
+    font-size: 0.8rem;
+  }
+
+
+  /* Transaction table */
+
+  /* Transaction table */
+
+.transaction-preview-table {
+  width: calc(100% - 2rem);
+  margin: 0 1rem 1rem;
+  font-size: 0.85rem;
 }
-  </style>
+
+.transaction-preview-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+
+  white-space: nowrap;
+  background-color: #fff;
+}
+
+.transaction-preview-table td {
+  vertical-align: middle;
+}
+
+.transaction-preview-description {
+  min-width: 190px;
+  max-width: 270px;
+  overflow-wrap: anywhere;
+}
+
+.transaction-preview-row {
+  cursor: pointer;
+}
+
+.transaction-preview-row:hover td,
+.transaction-preview-row:focus td {
+  background-color: #eef4ff;
+}
+
+.transaction-preview-row:focus {
+  outline: none;
+}
+  /* Transaction editor */
+
+  .transaction-edit-panel {
+    flex: 0 0 auto;
+    display: none;
+
+    padding: 1rem;
+
+    background-color: #fff;
+    border-top: 2px solid #dee2e6;
+    box-shadow: 0 -0.35rem 0.9rem rgba(0, 0, 0, 0.08);
+  }
+
+  .transaction-edit-panel.is-visible {
+    display: block;
+  }
+
+  .transaction-edit-details {
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .transaction-edit-status {
+    min-height: 1.25rem;
+    margin-top: 0.5rem;
+    font-size: 0.82rem;
+  }
+
+
+  /* Popup footer */
+
+  .transaction-preview-footer {
+    flex: 0 0 auto;
+
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+
+    padding: 0.75rem 1rem;
+
+    background-color: #f8f9fa;
+    border-top: 1px solid #dee2e6;
+
+    font-size: 0.87rem;
+  }
+
+
+  /* Mobile */
+
+  @media (max-width: 767.98px) {
+    .transaction-preview {
+      left: 12px !important;
+      right: 12px !important;
+      top: 12px !important;
+      bottom: 12px !important;
+
+      width: auto;
+      max-height: none;
+    }
+
+    .transaction-preview-header {
+      cursor: default;
+    }
+
+    .transaction-preview-drag-label {
+      display: none;
+    }
+
+    .preview-stat-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .transaction-preview-description {
+      min-width: 150px;
+      max-width: 220px;
+    }
+    .transaction-preview-body {
+  max-height: none;
+}
+  }
+</style>
+
+
 </head>
 
 <body class="bg-light">
@@ -262,56 +616,103 @@
 </div>
   </div>
 
+  <!------------------------- Spending By Category --------------------->
+
   <div class="row g-4 mb-4">
 
-    <div class="col-lg-5">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-body">
-          <h5 class="mb-3">Spending by Category</h5>
+  <div class="col-lg-5">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+        <h5 class="mb-3">Spending by Category</h5>
 
-          <div class="chart-box">
-            <canvas id="categoryChart"></canvas>
-          </div>
+        <div class="chart-box">
+          <canvas id="categoryChart"></canvas>
         </div>
       </div>
     </div>
-
-    <div class="col-lg-7">
-      <div class="card shadow-sm border-0 h-100">
-        <div class="card-body">
-          <h5 class="mb-3">Category Summary</h5>
-
-          <div class="table-responsive table-scroll">
-
-    <table class="table table-sm table-hover mb-0">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th class="text-end">Transactions</th>
-                  <th class="text-end">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in category_summary %}
-                  <tr>
-                    <td>{{ row.category|default:"Uncategorized" }}</td>
-                    <td class="text-end">{{ row.count }}</td>
-                    <td class="text-end">${{ row.total|floatformat:2 }}</td>
-                  </tr>
-                {% empty %}
-                  <tr>
-                    <td colspan="3" class="text-muted text-center">No summary available.</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
   </div>
+
+  <div class="col-lg-7">
+    <div class="card shadow-sm border-0 h-100">
+      <div class="card-body">
+
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h5 class="mb-1">Category Summary</h5>
+            <div class="small text-muted">
+              Hover over a category or tap it to view transactions.
+            </div>
+          </div>
+        </div>
+
+        <div class="table-responsive table-scroll">
+          <table
+            class="table table-sm table-hover mb-0"
+            id="category-summary-table"
+            data-preview-url="{% url 'banking:category_transaction_preview' %}"
+            data-update-url-template="{% url 'banking:update_transaction_category' 0 %}"
+            data-selected-year="{{ selected_year|default:'' }}"
+            data-selected-month="{{ selected_month|default:'' }}"
+            data-selected-month-name="{{ selected_month_name|default:'' }}"
+            data-selected-account="{{ selected_account|default:'' }}"
+          >
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th class="text-end">Transactions</th>
+                <th class="text-end">Total</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {% for row in category_summary %}
+                {% if row.category %}
+                  <tr
+                    class="category-preview-row"
+                    data-category="{{ row.category }}"
+                    tabindex="0"
+                    role="button"
+                    aria-label="View transactions for {{ row.category }}"
+                  >
+                    <td>
+                      {{ row.category }}
+                    </td>
+
+                    <td class="text-end">
+                      {{ row.count }}
+                    </td>
+
+                    <td class="text-end">
+                      ${{ row.total|default:0|floatformat:2 }}
+                    </td>
+                  </tr>
+                {% else %}
+                  <tr>
+                    <td>Uncategorized</td>
+                    <td class="text-end">{{ row.count }}</td>
+                    <td class="text-end">
+                      ${{ row.total|default:0|floatformat:2 }}
+                    </td>
+                  </tr>
+                {% endif %}
+              {% empty %}
+                <tr>
+                  <td colspan="3" class="text-muted text-center">
+                    No summary available.
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+</div>
+
+ <!--------------------------------------------------------------------->
 
   <div class="card shadow-sm border-0">
     <div class="card-body">
@@ -361,6 +762,135 @@
 
 </div>
 
+<!------------------------ Pop Up --------------------------------->
+<div
+  id="transaction-preview"
+  class="transaction-preview"
+  role="dialog"
+  aria-modal="false"
+  aria-labelledby="transaction-preview-title"
+>
+  <div
+    id="transaction-preview-drag-handle"
+    class="transaction-preview-header"
+    title="Drag this window"
+  >
+    <div>
+      <h6
+        id="transaction-preview-title"
+        class="transaction-preview-title"
+      >
+        Transactions
+      </h6>
+
+      <div
+        id="transaction-preview-period"
+        class="transaction-preview-period"
+      ></div>
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <span class="transaction-preview-drag-label">
+        Move
+      </span>
+
+      <button
+        type="button"
+        id="transaction-preview-close"
+        class="transaction-preview-close"
+        aria-label="Close transaction preview"
+      >
+        &times;
+      </button>
+    </div>
+  </div>
+
+  <div
+    id="transaction-preview-content"
+    class="transaction-preview-body"
+  ></div>
+
+  <div
+    id="transaction-edit-panel"
+    class="transaction-edit-panel"
+  >
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>Edit Transaction</strong>
+
+      <span class="small text-muted">
+        Change category
+      </span>
+    </div>
+
+    <div
+      id="transaction-edit-details"
+      class="transaction-edit-details"
+    ></div>
+
+    <label
+      for="transaction-edit-category"
+      class="form-label small fw-semibold"
+    >
+      Category
+    </label>
+
+    <div class="input-group input-group-sm">
+      <input
+        type="text"
+        id="transaction-edit-category"
+        class="form-control"
+        list="transaction-category-options"
+        autocomplete="off"
+      >
+
+      <button
+        type="button"
+        id="transaction-edit-save"
+        class="btn btn-outline-secondary"
+      >
+        Save
+      </button>
+
+      <button
+        type="button"
+        id="transaction-edit-cancel"
+        class="btn btn-outline-secondary"
+      >
+        Cancel
+      </button>
+    </div>
+
+    <div
+      id="transaction-edit-status"
+      class="transaction-edit-status"
+      aria-live="polite"
+    ></div>
+  </div>
+
+  <div
+    id="transaction-preview-footer"
+    class="transaction-preview-footer"
+  ></div>
+</div>
+
+<datalist id="transaction-category-options">
+  {% for category_name in categories %}
+    <option value="{{ category_name }}"></option>
+  {% endfor %}
+</datalist>
+<!----------------------------------------------------------------->
+
+<!-----------------------Category Choices.  ----------------------->
+<datalist id="transaction-category-options">
+  {% for category_name in categories %}
+    <option value="{{ category_name }}"></option>
+  {% endfor %}
+</datalist>
+<!----------------------------------------------------------------->
+
+
+
+<!------------------ Charts using Charts.js ------------------->
 <script>
   const labels = {{ category_labels|safe }};
   const totals = {{ category_totals|safe }};
@@ -387,6 +917,1247 @@
       }
     }
   });
+</script>
+<!------------------------------------------------------------->
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+  const categoryTable = document.getElementById(
+    "category-summary-table"
+  );
+
+  const preview = document.getElementById(
+    "transaction-preview"
+  );
+
+  if (!categoryTable || !preview) {
+    console.error(
+      "Category preview unavailable: required dashboard elements were not found."
+    );
+    return;
+  }
+
+  const previewContent = document.getElementById(
+    "transaction-preview-content"
+  );
+
+  const previewFooter = document.getElementById(
+    "transaction-preview-footer"
+  );
+
+  const previewTitle = document.getElementById(
+    "transaction-preview-title"
+  );
+
+  const previewPeriod = document.getElementById(
+    "transaction-preview-period"
+  );
+
+  const closeButton = document.getElementById(
+    "transaction-preview-close"
+  );
+
+  const dragHandle = document.getElementById(
+    "transaction-preview-drag-handle"
+  );
+
+  const editPanel = document.getElementById(
+    "transaction-edit-panel"
+  );
+
+  const editDetails = document.getElementById(
+    "transaction-edit-details"
+  );
+
+  const editCategory = document.getElementById(
+    "transaction-edit-category"
+  );
+
+  const editSave = document.getElementById(
+    "transaction-edit-save"
+  );
+
+  const editCancel = document.getElementById(
+    "transaction-edit-cancel"
+  );
+
+  const editStatus = document.getElementById(
+    "transaction-edit-status"
+  );
+
+  const previewUrl =
+    categoryTable.dataset.previewUrl || "";
+
+  const updateUrlTemplate =
+    categoryTable.dataset.updateUrlTemplate || "";
+
+  const selectedYear =
+    categoryTable.dataset.selectedYear || "";
+
+  const selectedMonth =
+    categoryTable.dataset.selectedMonth || "";
+
+  const selectedMonthName =
+    categoryTable.dataset.selectedMonthName || "";
+
+  const selectedAccount =
+    categoryTable.dataset.selectedAccount || "";
+
+  const previewCache = new Map();
+
+  let selectedTransaction = null;
+  let activeRow = null;
+  let requestNumber = 0;
+
+  let hasBeenDragged = false;
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let previewStartLeft = 0;
+  let previewStartTop = 0;
+
+  function getCookie(name) {
+    const cookies = document.cookie
+      ? document.cookie.split(";")
+      : [];
+
+    for (const cookie of cookies) {
+      const trimmedCookie = cookie.trim();
+
+      if (trimmedCookie.startsWith(`${name}=`)) {
+        return decodeURIComponent(
+          trimmedCookie.substring(name.length + 1)
+        );
+      }
+    }
+
+    return "";
+  }
+
+  function escapeHtml(value) {
+    const element = document.createElement("div");
+    element.textContent = value ?? "";
+    return element.innerHTML;
+  }
+
+  function formatCurrency(value) {
+    return new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency: "CAD",
+    }).format(Number(value) || 0);
+  }
+
+  function buildPeriodDescription() {
+    const parts = [];
+
+    if (selectedMonthName) {
+      parts.push(selectedMonthName);
+    }
+
+    if (selectedYear) {
+      parts.push(selectedYear);
+    }
+
+    if (!selectedMonthName && !selectedYear) {
+      parts.push("All dates");
+    }
+
+    if (selectedAccount) {
+      parts.push(selectedAccount);
+    } else {
+      parts.push("All accounts");
+    }
+
+    return parts.join(" · ");
+  }
+
+  function buildCacheKey(category) {
+    return [
+      category,
+      selectedYear,
+      selectedMonth,
+      selectedAccount,
+    ].join("|");
+  }
+
+  function keepPreviewInsideViewport(left, top) {
+    const spacing = 12;
+    const previewRect = preview.getBoundingClientRect();
+
+    const maxLeft = Math.max(
+      spacing,
+      window.innerWidth - previewRect.width - spacing
+    );
+
+    const maxTop = Math.max(
+      spacing,
+      window.innerHeight - previewRect.height - spacing
+    );
+
+    return {
+      left: Math.min(
+        Math.max(left, spacing),
+        maxLeft
+      ),
+      top: Math.min(
+        Math.max(top, spacing),
+        maxTop
+      ),
+    };
+  }
+
+  function positionPreview(row, forcePosition = false) {
+    if (!row) {
+      return;
+    }
+
+    if (window.innerWidth < 768) {
+      preview.style.left = "12px";
+      preview.style.right = "12px";
+      preview.style.top = "12px";
+      preview.style.bottom = "12px";
+      return;
+    }
+
+    if (hasBeenDragged && !forcePosition) {
+      return;
+    }
+
+    const rowRect = row.getBoundingClientRect();
+    const previewRect = preview.getBoundingClientRect();
+    const spacing = 12;
+
+    const previewWidth =
+      previewRect.width ||
+      Math.min(620, window.innerWidth - 24);
+
+    const previewHeight =
+      previewRect.height ||
+      Math.min(600, window.innerHeight - 24);
+
+    let left =
+      rowRect.left - previewWidth - spacing;
+
+    if (left < spacing) {
+      left = rowRect.right + spacing;
+    }
+
+    if (
+      left + previewWidth >
+      window.innerWidth - spacing
+    ) {
+      left =
+        window.innerWidth -
+        previewWidth -
+        spacing;
+    }
+
+    let top = rowRect.top;
+
+    if (
+      top + previewHeight >
+      window.innerHeight - spacing
+    ) {
+      top =
+        window.innerHeight -
+        previewHeight -
+        spacing;
+    }
+
+    const position = keepPreviewInsideViewport(
+      left,
+      top
+    );
+
+    preview.style.left = `${position.left}px`;
+    preview.style.top = `${position.top}px`;
+    preview.style.right = "auto";
+    preview.style.bottom = "auto";
+  }
+
+  function closeEditPanel() {
+    selectedTransaction = null;
+
+    if (editCategory) {
+      editCategory.value = "";
+    }
+
+    if (editStatus) {
+      editStatus.textContent = "";
+    }
+
+    if (editPanel) {
+      editPanel.classList.remove("is-visible");
+    }
+  }
+
+  function showLoading(category, row) {
+    activeRow = row;
+    hasBeenDragged = false;
+
+    previewTitle.textContent = category;
+    previewPeriod.textContent =
+      buildPeriodDescription();
+
+    previewContent.innerHTML = `
+      <div class="transaction-preview-loading">
+        Loading transactions…
+      </div>
+    `;
+
+    previewFooter.innerHTML = "";
+
+    closeEditPanel();
+
+    preview.classList.add("is-visible");
+
+    window.requestAnimationFrame(function () {
+      positionPreview(row, true);
+    });
+  }
+
+  function renderError(message) {
+    previewContent.innerHTML = `
+      <div class="transaction-preview-error">
+        ${escapeHtml(message)}
+      </div>
+    `;
+
+    previewFooter.innerHTML = "";
+  }
+
+  function openTransactionEditor(row) {
+  if (
+    !editPanel ||
+    !editDetails ||
+    !editCategory ||
+    !editStatus
+  ) {
+    console.error(
+      "Transaction editor elements were not found."
+    );
+    return;
+  }
+
+  /*
+   * Clicking the same transaction again
+   * closes the editor.
+   */
+  if (
+    selectedTransaction &&
+    selectedTransaction.id ===
+      row.dataset.transactionId &&
+    editPanel.classList.contains("is-visible")
+  ) {
+    closeEditPanel();
+    return;
+  }
+
+  selectedTransaction = {
+    id: row.dataset.transactionId,
+    description:
+      row.dataset.description || "",
+    date: row.dataset.date || "",
+    amount: row.dataset.amount || 0,
+    category: row.dataset.category || "",
+  };
+
+  editDetails.innerHTML = `
+    <strong>
+      ${escapeHtml(
+        selectedTransaction.description
+      )}
+    </strong>
+
+    <div class="text-muted">
+      ${escapeHtml(
+        selectedTransaction.date
+      )}
+      ·
+      ${formatCurrency(
+        selectedTransaction.amount
+      )}
+    </div>
+  `;
+
+  editCategory.value =
+    selectedTransaction.category;
+
+  editStatus.textContent = "";
+
+  editPanel.classList.add("is-visible");
+
+  window.requestAnimationFrame(function () {
+    const previewRect =
+      preview.getBoundingClientRect();
+
+    const position =
+      keepPreviewInsideViewport(
+        previewRect.left,
+        previewRect.top
+      );
+
+    if (window.innerWidth >= 768) {
+      preview.style.left =
+        `${position.left}px`;
+
+      preview.style.top =
+        `${position.top}px`;
+    }
+
+    editCategory.focus({
+      preventScroll: true,
+    });
+  });
+}
+
+  function attachTransactionRowEvents() {
+    const rows = previewContent.querySelectorAll(
+      ".transaction-preview-row"
+    );
+
+    rows.forEach(function (row) {
+      row.addEventListener(
+        "click",
+        function (event) {
+          event.stopPropagation();
+          openTransactionEditor(row);
+        }
+      );
+    });
+  }
+
+  function renderTransactions(data) {
+    const transactions =
+      Array.isArray(data.transactions)
+        ? data.transactions
+        : [];
+
+    const dailyTotals =
+      Array.isArray(data.daily_totals)
+        ? data.daily_totals
+        : [];
+
+    const recurringVendors =
+      Array.isArray(data.recurring_vendors)
+        ? data.recurring_vendors
+        : [];
+
+    console.log({
+
+  dailyTotals: dailyTotals,
+
+  transactions: transactions,
+
+});
+
+    if (!transactions.length) {
+      previewContent.innerHTML = `
+        <div class="transaction-preview-empty">
+          No matching transactions found.
+        </div>
+      `;
+
+      previewFooter.innerHTML = `
+        <span>0 transactions</span>
+        <strong>${formatCurrency(0)}</strong>
+      `;
+
+      return;
+    }
+
+    const maximumDailyTotal = Math.max(
+      ...dailyTotals.map(function (item) {
+        return Number(item.total) || 0;
+      }),
+      1
+    );
+
+    const trendBars = dailyTotals.map(
+      function (item) {
+        const height = Math.max(
+          8,
+          (
+            (Number(item.total) || 0) /
+            maximumDailyTotal
+          ) * 100
+        );
+
+        return `
+          <div
+            class="preview-trend-bar"
+            style="height: ${height}%"
+            title="${escapeHtml(
+              item.date_label
+            )}: ${formatCurrency(item.total)}"
+          ></div>
+        `;
+      }
+    ).join("");
+
+    let trendSection = `
+      <div class="text-muted small">
+        No trend data available.
+      </div>
+    `;
+
+    if (dailyTotals.length) {
+      const firstTrendDate =
+        dailyTotals[0].date_label || "";
+
+      const lastTrendDate =
+        dailyTotals[
+          dailyTotals.length - 1
+        ].date_label || "";
+
+      trendSection = `
+        <div
+          class="preview-trend"
+          aria-label="Daily spending trend"
+        >
+          ${trendBars}
+        </div>
+
+        <div class="preview-trend-caption">
+          <span>
+            ${escapeHtml(firstTrendDate)}
+          </span>
+
+          <span>
+            ${escapeHtml(lastTrendDate)}
+          </span>
+        </div>
+      `;
+    }
+
+    let vendorSection = `
+      <div class="text-muted small">
+        No recurring vendors in this timeframe.
+      </div>
+    `;
+
+    if (recurringVendors.length) {
+      const vendorRows = recurringVendors.map(
+        function (vendor) {
+          return `
+            <tr>
+              <td>
+                ${escapeHtml(
+                  vendor.description
+                )}
+              </td>
+
+              <td class="text-end">
+                ${vendor.count}
+              </td>
+
+              <td class="text-end text-nowrap">
+                ${formatCurrency(vendor.total)}
+              </td>
+            </tr>
+          `;
+        }
+      ).join("");
+
+      vendorSection = `
+        <table
+          class="table table-sm recurring-vendor-table"
+        >
+          <thead>
+            <tr>
+              <th>Vendor</th>
+              <th class="text-end">Visits</th>
+              <th class="text-end">Total</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            ${vendorRows}
+          </tbody>
+        </table>
+      `;
+    }
+
+    const transactionRows = transactions.map(
+      function (transaction) {
+        return `
+          <tr
+            class="transaction-preview-row"
+            tabindex="0"
+            data-transaction-id="${
+              transaction.id
+            }"
+            data-description="${escapeHtml(
+              transaction.description
+            )}"
+            data-date="${escapeHtml(
+              transaction.date
+            )}"
+            data-amount="${
+              transaction.amount
+            }"
+            data-category="${escapeHtml(
+              transaction.category
+            )}"
+          >
+            <td class="text-nowrap">
+              ${escapeHtml(transaction.date)}
+            </td>
+
+            <td
+              class="transaction-preview-description"
+            >
+              ${escapeHtml(
+                transaction.description
+              )}
+
+              ${
+                transaction.account
+                  ? `
+                    <div class="small text-muted">
+                      ${escapeHtml(
+                        transaction.account
+                      )}
+                    </div>
+                  `
+                  : ""
+              }
+            </td>
+
+            <td class="text-end text-nowrap">
+              ${formatCurrency(
+                transaction.amount
+              )}
+            </td>
+          </tr>
+        `;
+      }
+    ).join("");
+
+    previewContent.innerHTML = `
+      <div class="preview-analysis">
+        <div class="preview-stat-grid">
+          <div class="preview-stat">
+            <div class="preview-stat-label">
+              Average
+            </div>
+
+            <div class="preview-stat-value">
+              ${formatCurrency(
+                data.average_spend
+              )}
+            </div>
+          </div>
+
+          <div class="preview-stat">
+            <div class="preview-stat-label">
+              Largest
+            </div>
+
+            <div class="preview-stat-value">
+              ${formatCurrency(
+                data.largest_spend
+              )}
+            </div>
+          </div>
+
+          <div class="preview-stat">
+            <div class="preview-stat-label">
+              First
+            </div>
+
+            <div class="preview-stat-value">
+              ${escapeHtml(
+                data.first_transaction || "—"
+              )}
+            </div>
+          </div>
+
+          <div class="preview-stat">
+            <div class="preview-stat-label">
+              Most recent
+            </div>
+
+            <div class="preview-stat-value">
+              ${escapeHtml(
+                data.last_transaction || "—"
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-section">
+        <div class="preview-section-title">
+          Spending trend
+        </div>
+
+        ${trendSection}
+      </div>
+
+      <div class="preview-section">
+        <div class="preview-section-title">
+          Recurring vendors
+        </div>
+
+        ${vendorSection}
+      </div>
+
+      <table
+        class="table table-sm table-hover transaction-preview-table"
+      >
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th class="text-end">Amount</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          ${transactionRows}
+        </tbody>
+      </table>
+    `;
+
+    const transactionText =
+      data.transaction_count === 1
+        ? "1 transaction"
+        : `${data.transaction_count} transactions`;
+
+    const limitedText = data.is_limited
+      ? ` · Showing first ${data.displayed_count}`
+      : "";
+
+    previewFooter.innerHTML = `
+      <span>
+        ${transactionText}${limitedText}
+      </span>
+
+      <strong>
+        ${formatCurrency(data.total_spend)}
+      </strong>
+    `;
+
+    attachTransactionRowEvents();
+  }
+
+  async function loadPreview(row) {
+    const category = row.dataset.category;
+
+    if (!category) {
+      return;
+    }
+
+    showLoading(category, row);
+
+    const cacheKey = buildCacheKey(category);
+
+    if (previewCache.has(cacheKey)) {
+      renderTransactions(
+        previewCache.get(cacheKey)
+      );
+
+      window.requestAnimationFrame(function () {
+        positionPreview(row, true);
+      });
+
+      return;
+    }
+
+    const currentRequest = ++requestNumber;
+
+    const parameters = new URLSearchParams({
+      category: category,
+    });
+
+    if (selectedYear) {
+      parameters.set("year", selectedYear);
+    }
+
+    if (selectedMonth) {
+      parameters.set("month", selectedMonth);
+    }
+
+    if (selectedAccount) {
+      parameters.set(
+        "account",
+        selectedAccount
+      );
+    }
+
+    try {
+      const response = await fetch(
+        `${previewUrl}?${parameters.toString()}`,
+        {
+          headers: {
+            "X-Requested-With":
+              "XMLHttpRequest",
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (currentRequest !== requestNumber) {
+        return;
+      }
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+          "Unable to load transactions."
+        );
+      }
+
+      previewCache.set(cacheKey, data);
+
+      renderTransactions(data);
+
+      window.requestAnimationFrame(function () {
+        positionPreview(row, true);
+      });
+    } catch (error) {
+      if (currentRequest !== requestNumber) {
+        return;
+      }
+
+      renderError(
+        error.message ||
+        "Unable to load transactions."
+      );
+    }
+  }
+
+  async function saveTransactionCategory() {
+    if (
+      !selectedTransaction ||
+      !editCategory ||
+      !editStatus ||
+      !editSave
+    ) {
+      return;
+    }
+
+    const category =
+      editCategory.value.trim();
+
+    if (!category) {
+      editStatus.textContent =
+        "Enter a category.";
+      return;
+    }
+
+    if (!updateUrlTemplate) {
+      editStatus.textContent =
+        "Update URL is unavailable.";
+      return;
+    }
+
+    const transactionId =
+      selectedTransaction.id;
+
+    const placeholderPattern =
+      /\/0\/?$/;
+
+    let updateUrl = updateUrlTemplate;
+
+    if (placeholderPattern.test(updateUrl)) {
+      updateUrl = updateUrl.replace(
+        placeholderPattern,
+        `/${transactionId}/`
+      );
+    } else {
+      updateUrl = updateUrl.replace(
+        "/0/",
+        `/${transactionId}/`
+      );
+    }
+
+    editSave.disabled = true;
+    editStatus.textContent = "Saving…";
+
+    try {
+      const response = await fetch(
+        updateUrl,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            "X-CSRFToken":
+              getCookie("csrftoken"),
+            "X-Requested-With":
+              "XMLHttpRequest",
+          },
+          body: JSON.stringify({
+            category: category,
+          }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.error ||
+          "Unable to update transaction."
+        );
+      }
+
+      editStatus.textContent =
+        "Category updated.";
+
+      previewCache.clear();
+
+      const rowToReload = activeRow;
+
+      window.setTimeout(function () {
+        closeEditPanel();
+
+        if (rowToReload) {
+          loadPreview(rowToReload);
+        }
+      }, 500);
+    } catch (error) {
+      editStatus.textContent =
+        error.message ||
+        "Unable to update transaction.";
+    } finally {
+      editSave.disabled = false;
+    }
+  }
+
+  function closePreview() {
+    activeRow = null;
+    requestNumber += 1;
+    hasBeenDragged = false;
+    isDragging = false;
+
+    preview.classList.remove("is-visible");
+
+    closeEditPanel();
+
+    if (dragHandle) {
+      dragHandle.classList.remove(
+        "is-dragging"
+      );
+    }
+  }
+
+  function startDragging(event) {
+    if (
+      window.innerWidth < 768 ||
+      !dragHandle
+    ) {
+      return;
+    }
+
+    if (
+      event.target.closest(
+        "#transaction-preview-close"
+      )
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const rect =
+      preview.getBoundingClientRect();
+
+    isDragging = true;
+    hasBeenDragged = true;
+
+    dragStartX = event.clientX;
+    dragStartY = event.clientY;
+
+    previewStartLeft = rect.left;
+    previewStartTop = rect.top;
+
+    dragHandle.classList.add(
+      "is-dragging"
+    );
+
+    if (
+      dragHandle.setPointerCapture
+    ) {
+      dragHandle.setPointerCapture(
+        event.pointerId
+      );
+    }
+  }
+
+  function movePreview(event) {
+    if (!isDragging) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const nextLeft =
+      previewStartLeft +
+      event.clientX -
+      dragStartX;
+
+    const nextTop =
+      previewStartTop +
+      event.clientY -
+      dragStartY;
+
+    const position =
+      keepPreviewInsideViewport(
+        nextLeft,
+        nextTop
+      );
+
+    preview.style.left =
+      `${position.left}px`;
+
+    preview.style.top =
+      `${position.top}px`;
+
+    preview.style.right = "auto";
+    preview.style.bottom = "auto";
+  }
+
+  function stopDragging(event) {
+    if (!isDragging) {
+      return;
+    }
+
+    isDragging = false;
+
+    if (dragHandle) {
+      dragHandle.classList.remove(
+        "is-dragging"
+      );
+
+      if (
+        dragHandle.hasPointerCapture &&
+        dragHandle.hasPointerCapture(
+          event.pointerId
+        )
+      ) {
+        dragHandle.releasePointerCapture(
+          event.pointerId
+        );
+      }
+    }
+  }
+
+  const categoryRows =
+    categoryTable.querySelectorAll(
+      ".category-preview-row"
+    );
+
+  categoryRows.forEach(function (row) {
+    row.addEventListener(
+      "click",
+      function (event) {
+        event.stopPropagation();
+
+        /*
+         * Clicking the same category again closes it.
+         */
+        if (
+          preview.classList.contains(
+            "is-visible"
+          ) &&
+          activeRow === row
+        ) {
+          closePreview();
+          return;
+        }
+
+        loadPreview(row);
+      }
+    );
+
+    row.addEventListener(
+      "keydown",
+      function (event) {
+        if (
+          event.key === "Enter" ||
+          event.key === " "
+        ) {
+          event.preventDefault();
+          event.stopPropagation();
+
+          loadPreview(row);
+        }
+      }
+    );
+  });
+
+  preview.addEventListener(
+    "click",
+    function (event) {
+      event.stopPropagation();
+    }
+  );
+
+  if (closeButton) {
+    closeButton.addEventListener(
+      "click",
+      function (event) {
+        event.stopPropagation();
+        closePreview();
+      }
+    );
+  }
+
+  if (editSave) {
+    editSave.addEventListener(
+      "click",
+      function (event) {
+        event.stopPropagation();
+        saveTransactionCategory();
+      }
+    );
+  }
+
+  if (editCancel) {
+    editCancel.addEventListener(
+      "click",
+      function (event) {
+        event.stopPropagation();
+        closeEditPanel();
+      }
+    );
+  }
+
+  if (editCategory) {
+    editCategory.addEventListener(
+      "keydown",
+      function (event) {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.stopPropagation();
+
+          saveTransactionCategory();
+        }
+
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+
+          closeEditPanel();
+        }
+      }
+    );
+  }
+
+  if (dragHandle) {
+    dragHandle.addEventListener(
+      "pointerdown",
+      startDragging
+    );
+
+    dragHandle.addEventListener(
+      "pointermove",
+      movePreview
+    );
+
+    dragHandle.addEventListener(
+      "pointerup",
+      stopDragging
+    );
+
+    dragHandle.addEventListener(
+      "pointercancel",
+      stopDragging
+    );
+  }
+
+  document.addEventListener(
+    "click",
+    function () {
+      if (
+        preview.classList.contains(
+          "is-visible"
+        )
+      ) {
+        closePreview();
+      }
+    }
+  );
+
+  document.addEventListener(
+    "keydown",
+    function (event) {
+      if (
+        event.key === "Escape" &&
+        preview.classList.contains(
+          "is-visible"
+        )
+      ) {
+        closePreview();
+      }
+    }
+  );
+
+  window.addEventListener(
+    "resize",
+    function () {
+      if (
+        !preview.classList.contains(
+          "is-visible"
+        )
+      ) {
+        return;
+      }
+
+      if (window.innerWidth < 768) {
+        hasBeenDragged = false;
+
+        preview.style.left = "12px";
+        preview.style.right = "12px";
+        preview.style.top = "12px";
+        preview.style.bottom = "12px";
+
+        return;
+      }
+
+      const rect =
+        preview.getBoundingClientRect();
+
+      const position =
+        keepPreviewInsideViewport(
+          rect.left,
+          rect.top
+        );
+
+      preview.style.left =
+        `${position.left}px`;
+
+      preview.style.top =
+        `${position.top}px`;
+
+      preview.style.right = "auto";
+      preview.style.bottom = "auto";
+    }
+  );
+
+  window.addEventListener(
+    "scroll",
+    function () {
+      if (
+        preview.classList.contains(
+          "is-visible"
+        ) &&
+        activeRow &&
+        window.innerWidth >= 768 &&
+        !hasBeenDragged
+      ) {
+        positionPreview(activeRow);
+      }
+    },
+    true
+  );
+});
+
 </script>
 
 </body>

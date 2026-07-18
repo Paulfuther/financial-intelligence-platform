@@ -1,20 +1,19 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.db.models import Sum, Count, Avg, Max, Min
-from django.db.models.functions import ExtractYear, ExtractMonth
-from .models import BankTransaction, CategoryRule, ImportLog, Category
+import calendar
 import csv
 import hashlib
+import json
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from datetime import datetime
+
 from django.contrib import messages
-import calendar
-from django.db.models import Q
-from .models import DebtAccount
+from django.db.models import Avg, Count, F, Max, Min, Q, Sum
+from django.db.models.functions import ExtractMonth, ExtractYear
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_GET, require_POST
+
 from .forms import BankImportForm
-from datetime import date
-
-
-
+from .models import BankTransaction, Category, CategoryRule, DebtAccount, ImportLog
 
 MONTHS = [
     (1, "January"),
@@ -137,6 +136,228 @@ def dashboard(request):
 
     return render(request, "banking/dashboard.html", context)
 
+
+@require_GET
+def category_transaction_preview(request):
+    category = request.GET.get("category", "").strip()
+    year = request.GET.get("year", "").strip()
+    month = request.GET.get("month", "").strip()
+    account = request.GET.get("account", "").strip()
+
+    if not category:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "A category is required.",
+            },
+            status=400,
+        )
+
+    transactions = BankTransaction.objects.filter(
+        category=category
+    )
+
+    if account:
+        transactions = transactions.filter(
+            account_name=account
+        )
+
+    if year:
+        try:
+            transactions = transactions.filter(
+                transaction_date__year=int(year)
+            )
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid year.",
+                },
+                status=400,
+            )
+
+    if month:
+        try:
+            month_number = int(month)
+
+            if month_number < 1 or month_number > 12:
+                raise ValueError
+
+            transactions = transactions.filter(
+                transaction_date__month=month_number
+            )
+        except (TypeError, ValueError):
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "Invalid month.",
+                },
+                status=400,
+            )
+
+    summary = transactions.aggregate(
+        transaction_count=Count("id"),
+        total_spend=Sum("dr"),
+        average_spend=Avg("dr"),
+        largest_spend=Max("dr"),
+        first_transaction=Min("transaction_date"),
+        last_transaction=Max("transaction_date"),
+    )
+
+    transaction_count = summary["transaction_count"] or 0
+
+    transaction_rows = (
+        transactions
+        .order_by("-transaction_date", "description", "-id")
+        .values(
+            "id",
+            "transaction_date",
+            "description",
+            "account_name",
+            "dr",
+            "category",
+        )[:100]
+    )
+
+    rows = [
+        {
+            "id": row["id"],
+            "date": row["transaction_date"].strftime("%b %d, %Y"),
+            "description": row["description"] or "",
+            "account": row["account_name"] or "",
+            "amount": float(row["dr"] or 0),
+            "category": row["category"] or "",
+        }
+        for row in transaction_rows
+    ]
+
+    daily_totals_qs = (
+        transactions
+        .values(day=F("transaction_date"))
+        .annotate(
+            total=Sum("dr"),
+            count=Count("id"),
+        )
+        .order_by("day")
+    )
+
+    daily_totals = [
+        {
+            "date": row["day"].strftime("%Y-%m-%d"),
+            "date_label": row["day"].strftime("%b %d"),
+            "total": float(row["total"] or 0),
+            "count": row["count"],
+        }
+        for row in daily_totals_qs
+    ]
+
+    recurring_vendors_qs = (
+        transactions
+        .exclude(description__isnull=True)
+        .exclude(description="")
+        .values("description")
+        .annotate(
+            count=Count("id"),
+            total=Sum("dr"),
+            average=Avg("dr"),
+        )
+        .filter(count__gte=2)
+        .order_by("-total", "-count", "description")[:8]
+    )
+
+    recurring_vendors = [
+        {
+            "description": row["description"],
+            "count": row["count"],
+            "total": float(row["total"] or 0),
+            "average": float(row["average"] or 0),
+        }
+        for row in recurring_vendors_qs
+    ]
+
+    first_transaction = summary["first_transaction"]
+    last_transaction = summary["last_transaction"]
+
+    return JsonResponse(
+        {
+            "success": True,
+            "category": category,
+            "year": year,
+            "month": month,
+            "account": account,
+            "transactions": rows,
+            "transaction_count": transaction_count,
+            "displayed_count": len(rows),
+            "total_spend": float(summary["total_spend"] or 0),
+            "average_spend": float(summary["average_spend"] or 0),
+            "largest_spend": float(summary["largest_spend"] or 0),
+            "first_transaction": (
+                first_transaction.strftime("%b %d, %Y")
+                if first_transaction
+                else ""
+            ),
+            "last_transaction": (
+                last_transaction.strftime("%b %d, %Y")
+                if last_transaction
+                else ""
+            ),
+            "daily_totals": daily_totals,
+            "recurring_vendors": recurring_vendors,
+            "is_limited": transaction_count > len(rows),
+        }
+    )
+
+@require_POST
+def update_transaction_category(request, transaction_id):
+    try:
+        payload = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Invalid request data.",
+            },
+            status=400,
+        )
+
+    category = str(payload.get("category", "")).strip()
+
+    if not category:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "A category is required.",
+            },
+            status=400,
+        )
+
+    try:
+        transaction = BankTransaction.objects.get(
+            id=transaction_id
+        )
+    except BankTransaction.DoesNotExist:
+        return JsonResponse(
+            {
+                "success": False,
+                "error": "Transaction not found.",
+            },
+            status=404,
+        )
+
+    old_category = transaction.category or ""
+
+    transaction.category = category
+    transaction.save(update_fields=["category"])
+
+    return JsonResponse(
+        {
+            "success": True,
+            "transaction_id": transaction.id,
+            "old_category": old_category,
+            "category": transaction.category,
+        }
+    )
+
 def match_category(description, rules):
     description = description.upper()
 
@@ -155,7 +376,6 @@ def match_category(description, rules):
         return best_match.category
 
     return None
-
 
 def apply_rule_to_transaction(tx):
     rules = CategoryRule.objects.all()
@@ -267,7 +487,6 @@ def rules_management(request):
 
     return render(request, "banking/rules_management.html", context)
 
-
 def edit_rule(request, rule_id):
     rule = get_object_or_404(CategoryRule, id=rule_id)
 
@@ -324,7 +543,6 @@ def rule_detail(request, rule_id):
         "vendor_summary": vendor_summary,
         "total_spend": total_spend,
     })
-
 
 def category_detail(request, category):
     start_date = request.GET.get("start_date")
@@ -399,7 +617,6 @@ def category_detail(request, category):
 
     return render(request, "banking/category_detail.html", context)
 
-
 def parse_money(value):
     if value is None:
         return None
@@ -414,7 +631,6 @@ def parse_money(value):
     except InvalidOperation:
         return None
 
-
 def parse_date(value):
     value = str(value).strip()
 
@@ -425,7 +641,6 @@ def parse_date(value):
             pass
 
     return None
-
 
 def build_hash(transaction_date, description, dr, cr, balance):
     raw = (
@@ -439,14 +654,12 @@ def build_hash(transaction_date, description, dr, cr, balance):
 
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
 
-
 def apply_category_rules():
     for rule in CategoryRule.objects.all():
         BankTransaction.objects.filter(
             description__icontains=rule.keyword,
             category="Uncategorized",
         ).update(category=rule.category)
-
 
 def import_log_list(request):
 
@@ -1239,9 +1452,6 @@ def confirm_bank_csv_import(request):
 
     return redirect("banking:dashboard")
 
-
-
-
 def debt_dashboard(request):
     debts = DebtAccount.objects.filter(is_active=True)
 
@@ -1328,9 +1538,6 @@ def debt_dashboard(request):
     }
 
     return render(request, "banking/debt_dashboard.html", context)
-
-
-
 
 def category_summary(request):
     summary = (
