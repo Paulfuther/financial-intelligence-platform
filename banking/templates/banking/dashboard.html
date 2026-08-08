@@ -914,40 +914,40 @@
 
 <!-- Transactions Table -->
 
-<div class="card shadow-sm border-0">
+      <div class="card shadow-sm border-0">
 
-  <div class="card-body">
+        <div class="card-body">
 
-    <h5 class="mb-3">
-      Transactions
-    </h5>
+          <h5 class="mb-3">
+            Transactions
+          </h5>
 
-    <div class="table-responsive table-card">
+          <div class="table-responsive table-card">
 
-      <table class="table table-sm table-striped align-middle mb-0">
+            <table class="table table-sm table-striped align-middle mb-0">
 
         <thead class="table-light sticky-top">
           <tr>
             <th>
               Date
             </th>
-
             <th>
               Description
             </th>
-
+            {% if not selected_account %}
+              <th>
+                Account
+              </th>
+            {% endif %}
             <th>
               Category
             </th>
-
             <th class="text-end">
               DR
             </th>
-
             <th class="text-end">
               CR
             </th>
-
             <th class="text-end">
               Balance
             </th>
@@ -957,15 +957,18 @@
         <tbody>
 
           {% for tx in transactions %}
-
             <tr>
               <td>
                 {{ tx.transaction_date }}
               </td>
-
               <td>
                 {{ tx.description }}
               </td>
+              {% if not selected_account %}
+                <td>
+                  {{ tx.account_name }}
+                </td>
+              {% endif %}
 
               <td>
                 <span class="badge text-bg-secondary">
@@ -996,7 +999,7 @@
 
             <tr>
               <td
-                colspan="6"
+                colspan="{% if not selected_account %}7{% else %}6{% endif %}"
                 class="text-center text-muted"
               >
                 No transactions found.
@@ -1006,14 +1009,15 @@
           {% endfor %}
 
         </tbody>
+
       </table>
 
+          </div>
+
+        </div>
+      </div>
+
     </div>
-
-  </div>
-</div>
-
-</div>
 
 <!------------------------ Pop Up --------------------------------->
   <div

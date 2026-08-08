@@ -1,0 +1,87 @@
+{% load research_extras %}
+
+{% if statement_periods %}
+
+
+
+    <div class="table-responsive">
+
+        <table class="table financial-table statement-table">
+
+            <thead>
+                <tr>
+
+                    <th class="statement-name-column">
+                        Financial Metric
+                    </th>
+
+                    {% for period in statement_periods %}
+
+                        <th class="text-end">
+                            {{ period.label }}
+                        </th>
+
+                    {% endfor %}
+
+                </tr>
+            </thead>
+
+            <tbody>
+
+                {% for row in statement_rows %}
+
+                    <tr>
+
+                        <td class="statement-name">
+                            {{ row.label }}
+                        </td>
+
+                        {% for item in row.values %}
+
+                            <td class="text-end">
+
+                                {% if item %}
+
+                                    {% if row.is_eps %}
+
+                                        ${{ item.value|floatformat:2 }}
+
+                                    {% elif row.is_shares %}
+
+                                        {{ item.value|compact_number }}
+
+                                    {% else %}
+
+                                        {{ item.value|compact_currency }}
+
+                                    {% endif %}
+
+                                {% else %}
+
+                                    <span class="text-muted">
+                                        —
+                                    </span>
+
+                                {% endif %}
+
+                            </td>
+
+                        {% endfor %}
+
+                    </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+{% else %}
+
+    <div class="empty-state">
+        No financial statement periods are available.
+    </div>
+
+{% endif %}

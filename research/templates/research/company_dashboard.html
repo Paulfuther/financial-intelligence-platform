@@ -1,0 +1,2881 @@
+{% load humanize research_extras %}
+
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1"
+    >
+
+    <title>
+        {{ company.ticker }} Research Workspace
+    </title>
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+  <style>
+    /* =========================================================
+       Base layout
+    ========================================================= */
+
+    body {
+        background: #f3f4f6;
+        color: #1f2937;
+    }
+
+    .page-container {
+        max-width: 1500px;
+        margin: 0 auto;
+    }
+
+    .back-link {
+        color: #4b5563;
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        color: #111827;
+    }
+
+    .small-muted {
+        color: #6b7280;
+        font-size: 0.84rem;
+    }
+
+    .empty-state {
+        padding: 22px;
+        color: #6b7280;
+        text-align: center;
+    }
+
+    /* =========================================================
+       Company header
+    ========================================================= */
+
+    .company-header {
+        padding: 28px;
+        color: #ffffff;
+        background: linear-gradient(135deg, #111827, #1f3b64);
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    .ticker-badge {
+        display: inline-block;
+        padding: 5px 12px;
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 999px;
+        font-size: 0.85rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+    }
+
+    .header-stat {
+        height: 100%;
+        padding: 14px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+    }
+
+    .header-stat-label {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.78rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .header-stat-value {
+        margin-top: 3px;
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    /* =========================================================
+       Workspace navigation
+    ========================================================= */
+
+    .workspace-tabs {
+        display: flex;
+        gap: 8px;
+        margin: 24px 0;
+        padding-bottom: 12px;
+        overflow-x: auto;
+        border-bottom: 1px solid #dfe3e8;
+    }
+
+    .workspace-tab {
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 16px;
+        color: #52606d;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        white-space: nowrap;
+        transition:
+            background-color 0.15s ease,
+            color 0.15s ease;
+    }
+
+    .workspace-tab:hover {
+        color: #1f2933;
+        background-color: #eef2f6;
+    }
+
+    .workspace-tab.active {
+        color: #ffffff;
+        background-color: #1f2933;
+    }
+
+    .workspace-panel {
+        min-height: 260px;
+        padding: 28px;
+        background: #ffffff;
+        border: 1px solid #e1e5ea;
+        border-radius: 16px;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+    }
+
+    .workspace-panel h2 {
+        margin: 0 0 8px;
+        font-size: 1.25rem;
+        font-weight: 700;
+    }
+
+    .workspace-panel p {
+        margin-bottom: 0;
+        color: #697386;
+    }
+
+    /* =========================================================
+       Shared section cards
+    ========================================================= */
+
+    .section-card {
+        background: #ffffff;
+        border: 0;
+        border-radius: 16px;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+    }
+
+    .section-title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+
+    .section-subtitle {
+        margin-top: 4px;
+        color: #6b7280;
+        font-size: 0.88rem;
+    }
+
+    /* =========================================================
+       Metric cards
+    ========================================================= */
+
+    .metric-card {
+        height: 100%;
+        padding: 18px;
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        transition:
+            transform 0.15s ease,
+            box-shadow 0.15s ease;
+    }
+
+    .metric-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .metric-label {
+        color: #6b7280;
+        font-size: 0.82rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .metric-value {
+        margin-top: 7px;
+        color: #111827;
+        font-size: 1.55rem;
+        font-weight: 750;
+        line-height: 1.1;
+    }
+
+    .metric-period {
+        margin-top: 8px;
+        color: #9ca3af;
+        font-size: 0.78rem;
+    }
+
+    /* =========================================================
+       General financial tables
+    ========================================================= */
+
+    .financial-table {
+        margin-bottom: 0;
+        white-space: nowrap;
+    }
+
+    .financial-table thead th {
+        padding: 13px 14px;
+        color: #4b5563;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+    }
+
+    .financial-table tbody td {
+        padding: 13px 14px;
+        border-color: #eef0f3;
+        vertical-align: middle;
+    }
+
+    .financial-table tbody tr:hover {
+        background: #f9fafb;
+    }
+
+    .year-cell {
+        color: #111827;
+        font-weight: 700;
+    }
+
+    .filing-type {
+        display: inline-block;
+        min-width: 54px;
+        padding: 4px 9px;
+        color: #1d4ed8;
+        background: #e8f0fe;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-align: center;
+    }
+
+    /* =========================================================
+       Financial statement navigation
+    ========================================================= */
+
+    .statement-tabs {
+        display: flex;
+        gap: 28px;
+        margin-bottom: 20px;
+        overflow-x: auto;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .statement-tab {
+        flex: 0 0 auto;
+        padding: 14px 2px;
+        margin-bottom: -1px;
+        color: #6b7280;
+        background: transparent;
+        border: 0;
+        border-bottom: 3px solid transparent;
+        font-size: 0.95rem;
+        font-weight: 600;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+            color 0.2s ease,
+            border-color 0.2s ease;
+    }
+
+    .statement-tab:hover {
+        color: #111827;
+        border-bottom-color: #d1d5db;
+    }
+
+    .statement-tab.active {
+        color: #111827;
+        border-bottom-color: #2563eb;
+    }
+
+    .statement-tab:focus-visible {
+        border-radius: 3px;
+        outline: 2px solid #2563eb;
+        outline-offset: 3px;
+    }
+
+    /* =========================================================
+       Financial statement panels and tables
+    ========================================================= */
+
+    .statement-panel {
+        display: flex;
+        flex-direction: column;
+        height: 850px;
+        overflow: hidden;
+    }
+
+    .statement-panel.d-none {
+        display: none !important;
+    }
+
+    .statement-panel .table-responsive {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: auto;
+    }
+
+    .statement-panel .section-title {
+        margin-bottom: 4px;
+        font-size: 1.35rem;
+    }
+
+    .statement-table {
+        width: 100%;
+        margin-bottom: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .statement-table th,
+    .statement-table td {
+        min-width: 135px;
+        padding: 12px 16px;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .statement-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        color: #4b5563;
+        background: #f9fafb;
+        border-bottom: 1px solid #d1d5db;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-align: right;
+        text-transform: uppercase;
+    }
+
+    .statement-name-column {
+        left: 0;
+        z-index: 4 !important;
+        min-width: 260px !important;
+        text-align: left !important;
+    }
+
+    .statement-name {
+        position: sticky;
+        left: 0;
+        z-index: 1;
+        min-width: 260px !important;
+        color: #111827;
+        background: #ffffff;
+        font-family: inherit;
+        font-size: 0.92rem;
+        font-weight: 600;
+    }
+
+    .statement-table tbody td:not(.statement-name) {
+        color: #1f2937;
+        font-family:
+            "SFMono-Regular",
+            "SF Mono",
+            Menlo,
+            Monaco,
+            Consolas,
+            monospace;
+        font-size: 0.88rem;
+    }
+
+    .statement-table tbody tr:nth-child(even) td,
+    .statement-table tbody tr:nth-child(even) .statement-name {
+        background: #fafafa;
+    }
+
+    .statement-table tbody tr:hover td,
+    .statement-table tbody tr:hover .statement-name {
+        background: #f3f4f6;
+    }
+
+    /* =========================================================
+       Chart explorer
+    ========================================================= */
+
+    .chart-explorer {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
+        gap: 22px;
+        align-items: stretch;
+    }
+
+    .chart-sidebar,
+    .chart-workspace {
+        background: #ffffff;
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+    }
+
+    .chart-sidebar {
+        padding: 18px 14px;
+    }
+
+    .chart-sidebar-heading {
+        padding: 2px 10px 16px;
+        color: #111827;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 0.95rem;
+        font-weight: 700;
+    }
+
+    .chart-metric-group {
+        margin-top: 20px;
+    }
+
+    .chart-group-title {
+        margin-bottom: 7px;
+        padding: 0 10px;
+        color: #9ca3af;
+        font-size: 0.72rem;
+        font-weight: 750;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+    }
+
+    .chart-metric-list {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .chart-metric-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        padding: 9px 10px;
+        color: #4b5563;
+        background: transparent;
+        border: 0;
+        border-radius: 8px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        text-align: left;
+        cursor: pointer;
+        transition:
+            background-color 0.15s ease,
+            color 0.15s ease;
+    }
+
+    .chart-metric-button:hover {
+        color: #111827;
+        background: #f3f4f6;
+    }
+
+    .chart-metric-button.active {
+        color: #1d4ed8;
+        background: #eaf1ff;
+    }
+
+    .chart-metric-button:focus-visible {
+        outline: 2px solid #2563eb;
+        outline-offset: 2px;
+    }
+
+    .chart-metric-arrow {
+        font-size: 1.15rem;
+        line-height: 1;
+    }
+
+    .chart-workspace {
+        min-width: 0;
+        padding: 24px;
+    }
+
+    .chart-workspace-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        margin-bottom: 20px;
+    }
+
+    .chart-eyebrow {
+        margin-bottom: 5px;
+        color: #6b7280;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+    }
+
+    .chart-workspace-header h3 {
+        margin: 0 0 5px;
+        color: #111827;
+        font-size: 1.35rem;
+        font-weight: 750;
+    }
+
+    .chart-workspace-header p {
+        max-width: 680px;
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.88rem;
+    }
+
+    .chart-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 24px;
+    }
+
+    .chart-summary-card {
+        padding: 14px 16px;
+        background: #f9fafb;
+        border: 1px solid #eef0f3;
+        border-radius: 10px;
+    }
+
+    .chart-summary-label {
+        margin-bottom: 6px;
+        color: #6b7280;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+    }
+
+    .chart-summary-value {
+        color: #111827;
+        font-size: 1.25rem;
+        font-weight: 750;
+    }
+
+    .chart-summary-detail {
+        margin-top: 3px;
+        color: #9ca3af;
+        font-size: 0.76rem;
+    }
+
+    .chart-change-positive {
+        color: #047857;
+    }
+
+    .chart-change-negative {
+        color: #b91c1c;
+    }
+
+    .chart-change-neutral {
+        color: #4b5563;
+    }
+
+    .chart-main-container {
+        position: relative;
+        min-width: 0;
+        height: 480px;
+    }
+
+    /* =========================================================
+       Ratio cards
+    ========================================================= */
+
+    .ratio-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+        padding: 24px;
+    }
+
+    .ratio-item {
+        padding: 18px;
+        background: #f8fafc;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+    }
+
+    .ratio-label {
+        display: block;
+        margin-bottom: 8px;
+        color: #64748b;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .ratio-item strong {
+        color: #0f172a;
+        font-size: 1.5rem;
+    }
+
+    .ratio-change {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 10px;
+        font-size: 0.82rem;
+        font-weight: 700;
+    }
+
+    .ratio-change span {
+        color: #64748b;
+        font-weight: 500;
+    }
+
+    .ratio-positive {
+        color: #168451;
+    }
+
+    .ratio-negative {
+        color: #dc3545;
+    }
+
+    .ratio-neutral {
+        color: #64748b;
+    }
+
+    /* =========================================================
+       Financial health card
+    ========================================================= */
+
+    .health-score-card {
+    margin-bottom: 24px;
+    padding: 22px 26px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.health-score-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.health-score-eyebrow {
+    margin-bottom: 3px;
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.health-score-title {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.3rem;
+    font-weight: 750;
+}
+
+.health-score-period {
+    margin-top: 3px;
+    color: #64748b;
+    font-size: 0.82rem;
+}
+
+.health-score-rating-badge {
+    padding: 7px 13px;
+    color: #166534;
+    background: #dcfce7;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.health-score-main {
+    padding: 18px 0 20px;
+    text-align: center;
+}
+
+.health-score-number {
+    color: #0f172a;
+    font-size: 2.9rem;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 1;
+}
+
+.health-score-number span {
+    color: #94a3b8;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: normal;
+}
+
+.health-score-stars {
+    margin-top: 8px;
+    color: #f59e0b;
+    font-size: 1.2rem;
+    letter-spacing: 0.06em;
+}
+
+.health-score-summary {
+    max-width: 620px;
+    margin: 8px auto 0;
+    color: #475569;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.health-score-breakdown {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.health-component {
+    padding: 13px 14px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+}
+
+.health-component-label {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.health-component-value {
+    margin-top: 6px;
+    color: #0f172a;
+    font-size: 1.1rem;
+    font-weight: 750;
+}
+
+.health-component-value span {
+    color: #94a3b8;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.health-progress {
+    height: 5px;
+    margin-top: 9px;
+    overflow: hidden;
+    background: #e2e8f0;
+    border-radius: 999px;
+}
+
+.health-score-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 14px;
+    padding-top: 12px;
+    color: #64748b;
+    border-top: 1px solid #e5e7eb;
+    font-size: 0.86rem;
+}
+    .health-trend-positive {
+        color: #15803d;
+    }
+
+    .health-trend-negative {
+        color: #b45309;
+    }
+
+    .health-trend-neutral {
+        color: #64748b;
+    }
+
+    /* =========================================================
+       Responsive layout
+    ========================================================= */
+
+    @media (max-width: 1000px) {
+        .health-score-breakdown {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 992px) {
+        .chart-explorer,
+        .charts-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .chart-sidebar {
+            padding-bottom: 14px;
+        }
+
+        .chart-metric-group {
+            margin-top: 14px;
+        }
+
+        .chart-metric-list {
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .chart-metric-button {
+            width: auto;
+            border: 1px solid #e5e7eb;
+        }
+
+        .chart-metric-arrow {
+            display: none;
+        }
+    }
+
+    @media (max-width: 900px) {
+        .ratio-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+
+    @media (max-width: 700px) {
+        .chart-workspace {
+            padding: 18px;
+        }
+
+        .chart-summary-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .chart-main-container {
+            height: 350px;
+        }
+    }
+
+    @media (max-width: 600px) {
+        .health-score-card {
+            padding: 20px;
+        }
+
+        .health-score-header {
+            flex-direction: column;
+        }
+
+        .health-score-number {
+            font-size: 2.8rem;
+        }
+
+        .health-score-breakdown,
+        .ratio-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 576px) {
+        .chart-card {
+            padding: 16px;
+        }
+
+        .chart-container {
+            height: 280px;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<div class="page-container px-3 py-4">
+
+    <div class="mb-3">
+        <a
+            href="{% url 'research:company_list' %}"
+            class="back-link"
+        >
+            ← Back to companies
+        </a>
+    </div>
+
+    <!-- Company header -->
+    <section class="company-header mb-4">
+
+        <div class="row align-items-start g-4">
+
+            <div class="col-lg-7">
+
+                <div class="ticker-badge mb-3">
+                    {{ company.ticker }}
+                </div>
+
+                <h1 class="display-6 fw-bold mb-2">
+                    {{ company.name }}
+                </h1>
+
+                <div class="text-white-50">
+
+                    {% if company.exchange %}
+                        {{ company.exchange }}
+                    {% endif %}
+
+                    {% if company.sic_description %}
+
+                        {% if company.exchange %}
+                            ·
+                        {% endif %}
+
+                        {{ company.sic_description }}
+
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            <div class="col-lg-5">
+
+                <div class="row g-3">
+
+                    <div class="col-4">
+                        <div class="header-stat">
+
+                            <div class="header-stat-label">
+                                Filings
+                            </div>
+
+                            <div class="header-stat-value">
+                                {{ filing_count|intcomma }}
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="col-4">
+                        <div class="header-stat">
+
+                            <div class="header-stat-label">
+                                Raw facts
+                            </div>
+
+                            <div class="header-stat-value">
+                                {{ financial_fact_count|intcomma }}
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <div class="col-4">
+                        <div class="header-stat">
+
+                            <div class="header-stat-label">
+                                Metrics
+                            </div>
+
+                            <div class="header-stat-value">
+                                {{ financial_metric_count|intcomma }}
+                            </div>
+
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    <!-- Workspace navigation -->
+    <nav class="workspace-tabs">
+
+        <a
+            href="?tab=overview&period={{ selected_period }}"
+            class="workspace-tab {% if selected_tab == 'overview' %}active{% endif %}"
+        >
+            Overview
+        </a>
+
+        <a
+            href="?tab=financials&period={{ selected_period }}"
+            class="workspace-tab {% if selected_tab == 'financials' %}active{% endif %}"
+        >
+            Financials
+        </a>
+
+        <a
+            href="?tab=charts&period={{ selected_period }}"
+            class="workspace-tab {% if selected_tab == 'charts' %}active{% endif %}"
+        >
+            Charts
+        </a>
+
+        <a
+            href="?tab=ratios&period={{ selected_period }}"
+            class="workspace-tab {% if selected_tab == 'ratios' %}active{% endif %}"
+        >
+            Ratios
+        </a>
+
+        <a
+            href="?tab=filings&period={{ selected_period }}"
+            class="workspace-tab {% if selected_tab == 'filings' %}active{% endif %}"
+        >
+            Filings
+        </a>
+
+        <a
+            href="?tab=ai&period={{ selected_period }}"
+            class="workspace-tab {% if selected_tab == 'ai' %}active{% endif %}"
+        >
+            AI Research
+        </a>
+
+    </nav>
+
+    {% if selected_tab == "overview" %}
+
+        <!-- Period selector -->
+        <div
+            class="d-flex justify-content-between
+                   align-items-center mb-4"
+        >
+
+            <div class="btn-group" role="group">
+
+                <a
+                    href="?tab=overview&period=annual"
+                    class="btn {% if selected_period == 'annual' %}btn-dark{% else %}btn-outline-dark{% endif %}"
+                >
+                    Annual
+                </a>
+
+                <a
+                    href="?tab=overview&period=quarterly"
+                    class="btn {% if selected_period == 'quarterly' %}btn-dark{% else %}btn-outline-dark{% endif %}"
+                >
+                    Quarterly
+                </a>
+
+            </div>
+
+            {% if latest_period_label %}
+
+                <div class="small text-muted">
+                    Latest available:
+                    <strong>{{ latest_period_label }}</strong>
+                </div>
+
+            {% endif %}
+
+        </div>
+
+        <!-- Latest metrics -->
+        <section class="section-card p-4 mb-4">
+
+            <div class="mb-4">
+
+                <h2 class="section-title">
+
+                    {% if selected_period == "quarterly" %}
+                        Latest Quarterly Financials
+                    {% else %}
+                        Latest Annual Financials
+                    {% endif %}
+
+                </h2>
+
+                <div class="section-subtitle">
+
+                    {% if selected_period == "quarterly" %}
+                        Most recent normalized quarterly values
+                    {% else %}
+                        Most recent normalized full-year values
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            {% if latest_metrics %}
+
+                <div class="row g-3">
+
+                    {% for item in latest_metrics %}
+
+                        <div class="col-sm-6 col-lg-4 col-xl-3">
+
+                            <div class="metric-card">
+
+                                <div class="metric-label">
+                                    {{ item.get_metric_display }}
+                                </div>
+
+                                <div class="metric-value">
+
+                                    {% if item.metric == "eps_basic" or item.metric == "eps_diluted" %}
+
+                                        ${{ item.value|floatformat:2 }}
+
+                                    {% elif item.metric == "shares_outstanding" %}
+
+                                        {{ item.value|compact_number }}
+
+                                    {% else %}
+
+                                        {{ item.value|compact_currency }}
+
+                                    {% endif %}
+
+                                </div>
+
+                                <div class="metric-period">
+
+                                    {{ item.fiscal_year }}
+                                    {{ item.fiscal_period }}
+
+                                    {% if item.end_date %}
+                                        · {{ item.end_date }}
+                                    {% endif %}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    {% endfor %}
+
+                </div>
+
+            {% else %}
+
+                <div class="empty-state">
+
+                    {% if selected_period == "quarterly" %}
+                        No normalized quarterly metrics are available.
+                    {% else %}
+                        No normalized annual metrics are available.
+                    {% endif %}
+
+                </div>
+
+            {% endif %}
+
+        </section>
+
+        {% if selected_period == "annual" %}
+
+            <!-- Year-over-year changes -->
+            <section class="section-card mb-4 overflow-hidden">
+
+                <div class="p-4">
+
+                    <h2 class="section-title">
+                        What Changed Since Last Year?
+                    </h2>
+
+                    <div class="section-subtitle">
+                        Comparison of the two most recent fiscal years
+                    </div>
+
+                </div>
+
+                {% if changes_since_last_year %}
+
+                    <div class="table-responsive">
+
+                        <table class="table financial-table">
+
+                            <thead>
+                                <tr>
+                                    <th>Metric</th>
+
+                                    <th class="text-end">
+                                        Prior Year
+                                    </th>
+
+                                    <th class="text-end">
+                                        Current Year
+                                    </th>
+
+                                    <th class="text-end">
+                                        Change
+                                    </th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+
+                                {% for change in changes_since_last_year %}
+
+                                    <tr>
+
+                                        <td class="fw-semibold">
+                                            {{ change.label }}
+                                        </td>
+
+                                        <td class="text-end">
+
+                                            {% if change.metric == "eps_diluted" %}
+
+                                                ${{ change.prior.value|floatformat:2 }}
+
+                                            {% else %}
+
+                                                {{ change.prior.value|compact_currency }}
+
+                                            {% endif %}
+
+                                        </td>
+
+                                        <td class="text-end">
+
+                                            {% if change.metric == "eps_diluted" %}
+
+                                                ${{ change.current.value|floatformat:2 }}
+
+                                            {% else %}
+
+                                                {{ change.current.value|compact_currency }}
+
+                                            {% endif %}
+
+                                        </td>
+
+                                        <td class="text-end fw-bold">
+
+                                            {% if change.percentage_change is None %}
+
+                                                <span class="text-muted">
+                                                    —
+                                                </span>
+
+                                            {% elif change.direction == "flat" %}
+
+                                                <span class="text-muted">
+                                                    0.0%
+                                                </span>
+
+                                            {% elif change.is_positive %}
+
+                                                <span class="text-success">
+
+                                                    {% if change.direction == "up" %}
+                                                        ▲
+                                                    {% else %}
+                                                        ▼
+                                                    {% endif %}
+
+                                                    {{ change.percentage_change|floatformat:1 }}%
+
+                                                </span>
+
+                                            {% else %}
+
+                                                <span class="text-danger">
+
+                                                    {% if change.direction == "up" %}
+                                                        ▲
+                                                    {% else %}
+                                                        ▼
+                                                    {% endif %}
+
+                                                    {{ change.percentage_change|floatformat:1 }}%
+
+                                                </span>
+
+                                            {% endif %}
+
+                                        </td>
+
+                                    </tr>
+
+                                {% endfor %}
+
+                            </tbody>
+
+                        </table>
+
+                    </div>
+
+                {% else %}
+
+                    <div class="empty-state">
+                        Two comparable fiscal years are not available.
+                    </div>
+
+                {% endif %}
+
+            </section>
+
+        {% endif %}
+
+        <!-- Financial history -->
+        <section class="section-card mb-4 overflow-hidden">
+
+            <div class="p-4">
+
+                <h2 class="section-title">
+
+                    {% if selected_period == "quarterly" %}
+                        Quarterly Financial History
+                    {% else %}
+                        Five-Year Financial History
+                    {% endif %}
+
+                </h2>
+
+                <div class="section-subtitle">
+
+                    {% if selected_period == "quarterly" %}
+                        Quarterly values from the normalized SEC dataset
+                    {% else %}
+                        Full-year values from the normalized SEC dataset
+                    {% endif %}
+
+                </div>
+
+            </div>
+
+            {% if financial_history %}
+
+                <div class="table-responsive">
+
+                    <table class="table financial-table">
+
+                        <thead>
+                            <tr>
+
+                                <th>
+                                    {% if selected_period == "quarterly" %}
+                                        Quarter
+                                    {% else %}
+                                        Year
+                                    {% endif %}
+                                </th>
+
+                                <th class="text-end">
+                                    Revenue
+                                </th>
+
+                                <th class="text-end">
+                                    Operating Income
+                                </th>
+
+                                <th class="text-end">
+                                    Net Income
+                                </th>
+
+                                <th class="text-end">
+                                    Diluted EPS
+                                </th>
+
+                                <th class="text-end">
+                                    Cash
+                                </th>
+
+                                <th class="text-end">
+                                    Long-Term Debt
+                                </th>
+
+                                <th class="text-end">
+                                    Operating Cash Flow
+                                </th>
+
+                                <th class="text-end">
+                                    Free Cash Flow
+                                </th>
+
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for row in financial_history %}
+
+                                <tr>
+
+                                    <td class="year-cell">
+                                        {{ row.label }}
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.revenue %}
+                                            {{ row.metrics.revenue.value|compact_currency }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.operating_income %}
+                                            {{ row.metrics.operating_income.value|compact_currency }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.net_income %}
+                                            {{ row.metrics.net_income.value|compact_currency }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.eps_diluted %}
+                                            ${{ row.metrics.eps_diluted.value|floatformat:2 }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.cash %}
+                                            {{ row.metrics.cash.value|compact_currency }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.long_term_debt %}
+                                            {{ row.metrics.long_term_debt.value|compact_currency }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.operating_cash_flow %}
+                                            {{ row.metrics.operating_cash_flow.value|compact_currency }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if row.metrics.free_cash_flow %}
+                                            {{ row.metrics.free_cash_flow.value|compact_currency }}
+                                        {% else %}
+                                            —
+                                        {% endif %}
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="empty-state">
+
+                    {% if selected_period == "quarterly" %}
+                        No quarterly financial history is available.
+                    {% else %}
+                        No annual financial history is available.
+                    {% endif %}
+
+                </div>
+
+            {% endif %}
+
+        </section>
+
+        <!-- Recent filings -->
+        <section class="section-card overflow-hidden">
+
+            <div class="p-4">
+
+                <h2 class="section-title">
+                    Recent SEC Filings
+                </h2>
+
+                <div class="section-subtitle">
+                    Latest filing records imported from the SEC
+                </div>
+
+            </div>
+
+            {% if recent_filings %}
+
+                <div class="table-responsive">
+
+                    <table class="table financial-table">
+
+                        <thead>
+                            <tr>
+                                <th>Form</th>
+                                <th>Filed</th>
+                                <th>Report Date</th>
+                                <th>Accession Number</th>
+                                <th class="text-end">
+                                    Document
+                                </th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+
+                            {% for filing in recent_filings %}
+
+                                <tr>
+
+                                    <td>
+                                        <span class="filing-type">
+                                            {{ filing.form }}
+                                        </span>
+                                    </td>
+
+                                    <td>
+                                        {{ filing.filing_date|default:"—" }}
+                                    </td>
+
+                                    <td>
+                                        {{ filing.report_date|default:"—" }}
+                                    </td>
+
+                                    <td class="small-muted">
+                                        {{ filing.accession_number }}
+                                    </td>
+
+                                    <td class="text-end">
+
+                                        {% if filing.filing_url %}
+
+                                            <a
+                                                href="{{ filing.filing_url }}"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                class="btn btn-sm btn-outline-primary"
+                                            >
+                                                View filing
+                                            </a>
+
+                                        {% else %}
+
+                                            <span class="text-muted">
+                                                —
+                                            </span>
+
+                                        {% endif %}
+
+                                    </td>
+
+                                </tr>
+
+                            {% endfor %}
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            {% else %}
+
+                <div class="empty-state">
+                    No filing records are available.
+                </div>
+
+            {% endif %}
+
+        </section>
+
+    {% elif selected_tab == "financials" %}
+
+    <!-- Financials header -->
+    <div
+        class="d-flex flex-wrap justify-content-between
+               align-items-center gap-3 mb-4"
+    >
+
+        <div>
+            <h2 class="section-title">
+                Financial Statements
+            </h2>
+
+            <div class="section-subtitle">
+                Normalized financial data imported from SEC filings
+            </div>
+        </div>
+
+        <div class="btn-group" role="group">
+
+            <a
+                href="?tab=financials&period=annual"
+                class="btn {% if selected_period == 'annual' %}btn-dark{% else %}btn-outline-dark{% endif %}"
+            >
+                Annual
+            </a>
+
+            <a
+                href="?tab=financials&period=quarterly"
+                class="btn {% if selected_period == 'quarterly' %}btn-dark{% else %}btn-outline-dark{% endif %}"
+            >
+                Quarterly
+            </a>
+
+        </div>
+
+    </div>
+
+    <!-- Statement navigation -->
+    <div class="statement-tabs mb-4">
+
+        <button
+            type="button"
+            class="statement-tab active"
+            data-statement-target="income-statement"
+        >
+            Income Statement
+        </button>
+
+        <button
+            type="button"
+            class="statement-tab"
+            data-statement-target="balance-sheet"
+        >
+            Balance Sheet
+        </button>
+
+        <button
+            type="button"
+            class="statement-tab"
+            data-statement-target="cash-flow"
+        >
+            Cash Flow
+        </button>
+
+    </div>
+
+    <!-- Income statement -->
+    <section
+        id="income-statement"
+        class="section-card statement-panel overflow-hidden"
+    >
+
+        <div class="p-4">
+
+            <h2 class="section-title">
+                Income Statement
+            </h2>
+
+            <div class="section-subtitle">
+                Revenue, expenses and profitability
+            </div>
+
+        </div>
+
+        {% include "research/partials/financial_statement_table.html" with statement_rows=income_statement %}
+
+    </section>
+
+    <!-- Balance sheet -->
+    <section
+        id="balance-sheet"
+        class="section-card statement-panel overflow-hidden d-none"
+    >
+
+        <div class="p-4">
+
+            <h2 class="section-title">
+                Balance Sheet
+            </h2>
+
+            <div class="section-subtitle">
+                Assets, liabilities and shareholders’ equity
+            </div>
+
+        </div>
+
+        {% include "research/partials/financial_statement_table.html" with statement_rows=balance_sheet %}
+
+    </section>
+
+    <!-- Cash flow -->
+    <section
+        id="cash-flow"
+        class="section-card statement-panel overflow-hidden d-none"
+    >
+
+        <div class="p-4">
+
+            <h2 class="section-title">
+                Cash Flow Statement
+            </h2>
+
+            <div class="section-subtitle">
+                Operating, investing and financing cash flows
+            </div>
+
+        </div>
+
+        {% include "research/partials/financial_statement_table.html" with statement_rows=cash_flow_statement %}
+
+    </section>
+
+    {% elif selected_tab == "charts" %}
+
+    <div
+        class="d-flex flex-wrap justify-content-between
+               align-items-center gap-3 mb-4"
+    >
+
+        <div>
+            <h2 class="section-title">
+                Financial Chart Explorer
+            </h2>
+
+            <div class="section-subtitle">
+                Explore normalized SEC financial metrics
+                across reporting periods
+            </div>
+        </div>
+
+        <div class="btn-group" role="group">
+
+            <a
+                href="?tab=charts&period=annual"
+                class="btn {% if selected_period == 'annual' %}btn-dark{% else %}btn-outline-dark{% endif %}"
+            >
+                Annual
+            </a>
+
+            <a
+                href="?tab=charts&period=quarterly"
+                class="btn {% if selected_period == 'quarterly' %}btn-dark{% else %}btn-outline-dark{% endif %}"
+            >
+                Quarterly
+            </a>
+
+        </div>
+
+    </div>
+
+    {% if default_chart_metric %}
+
+        <div class="chart-explorer">
+
+            <!-- Metric selector -->
+            <aside class="chart-sidebar">
+
+                <div class="chart-sidebar-heading">
+                    Metrics
+                </div>
+
+                {% for group in chart_groups %}
+
+                    <div class="chart-metric-group">
+
+                        <div class="chart-group-title">
+                            {{ group.category }}
+                        </div>
+
+                        <div class="chart-metric-list">
+
+                            {% for metric in group.metrics %}
+
+                                <button
+                                    type="button"
+                                    class="chart-metric-button {% if metric.metric == default_chart_metric %}active{% endif %}"
+                                    data-chart-metric="{{ metric.metric }}"
+                                >
+                                    <span>
+                                        {{ metric.label }}
+                                    </span>
+
+                                    <span
+                                        class="chart-metric-arrow"
+                                        aria-hidden="true"
+                                    >
+                                        ›
+                                    </span>
+                                </button>
+
+                            {% endfor %}
+
+                        </div>
+
+                    </div>
+
+                {% endfor %}
+
+            </aside>
+
+            <!-- Main chart workspace -->
+            <section class="chart-workspace">
+
+                <div class="chart-workspace-header">
+
+                    <div>
+
+                        <div class="chart-eyebrow">
+                            {{ company.ticker }}
+                            ·
+                            {% if selected_period == "annual" %}
+                                Annual
+                            {% else %}
+                                Quarterly
+                            {% endif %}
+                        </div>
+
+                        <h3 id="chartExplorerTitle">
+                            Financial Metric
+                        </h3>
+
+                        <p id="chartExplorerDescription">
+                            Historical normalized SEC data
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <div class="chart-summary-grid">
+
+                    <div class="chart-summary-card">
+
+                        <div class="chart-summary-label">
+                            Latest
+                        </div>
+
+                        <div
+                            id="chartLatestValue"
+                            class="chart-summary-value"
+                        >
+                            —
+                        </div>
+
+                        <div
+                            id="chartLatestPeriod"
+                            class="chart-summary-detail"
+                        >
+                            —
+                        </div>
+
+                    </div>
+
+                    <div class="chart-summary-card">
+
+                        <div class="chart-summary-label">
+                            Period Change
+                        </div>
+
+                        <div
+                            id="chartPeriodChange"
+                            class="chart-summary-value"
+                        >
+                            —
+                        </div>
+
+                        <div class="chart-summary-detail">
+                            Compared with previous period
+                        </div>
+
+                    </div>
+
+                    <div class="chart-summary-card">
+
+                        <div class="chart-summary-label">
+                            Visible Periods
+                        </div>
+
+                        <div
+                            id="chartPeriodCount"
+                            class="chart-summary-value"
+                        >
+                            —
+                        </div>
+
+                        <div class="chart-summary-detail">
+                            With reported values
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="chart-main-container">
+                    <canvas id="financialExplorerChart"></canvas>
+                </div>
+
+            </section>
+
+        </div>
+
+        {{ chart_data|json_script:"financial-chart-data" }}
+
+    {% else %}
+
+        <section class="workspace-panel">
+
+            <div class="empty-state">
+                No financial metrics are available for charting.
+            </div>
+
+        </section>
+
+    {% endif %}
+
+
+<!---------------------------------- ratios ---------------------------->
+
+    {% elif selected_tab == "ratios" %}
+
+        {% if latest_ratio %}
+
+        <!-------------------------------------------------------------------->
+{% if latest_ratio.health_score %}
+
+<div class="health-score-card">
+
+    <div class="health-score-header">
+        <div>
+            <div class="health-score-eyebrow">
+                Financial Health
+            </div>
+
+            <h2 class="health-score-title">
+                {{ company.name }}
+            </h2>
+
+            <div class="health-score-period">
+                Fiscal Year {{ latest_ratio.fiscal_year }}
+            </div>
+        </div>
+
+        <div class="health-score-rating-badge">
+            {{ latest_ratio.health_rating }}
+        </div>
+    </div>
+
+    <div class="health-score-main">
+
+        <div class="health-score-number">
+            {{ latest_ratio.health_score|floatformat:1 }}
+            <span>/ 100</span>
+        </div>
+
+        <div class="health-score-stars">
+            {% if latest_ratio.health_score >= 90 %}
+                ★★★★★
+            {% elif latest_ratio.health_score >= 80 %}
+                ★★★★☆
+            {% elif latest_ratio.health_score >= 70 %}
+                ★★★☆☆
+            {% elif latest_ratio.health_score >= 60 %}
+                ★★☆☆☆
+            {% else %}
+                ★☆☆☆☆
+            {% endif %}
+        </div>
+
+        <div class="health-score-summary">
+    {% if latest_ratio.health_rating == "Exceptional" %}
+        Exceptional profitability, cash generation and balance-sheet strength.
+    {% elif latest_ratio.health_rating == "Excellent" %}
+        Excellent overall financial health with only modest areas of weakness.
+    {% elif latest_ratio.health_rating == "Very Good" %}
+        Strong overall financial health with limited areas requiring attention.
+    {% elif latest_ratio.health_rating == "Good" %}
+        Generally healthy financial performance with some areas of weakness.
+    {% elif latest_ratio.health_rating == "Fair" %}
+        Adequate financial health, but several areas should be monitored.
+    {% else %}
+        Material financial weaknesses require closer investigation.
+    {% endif %}
+</div>
+
+    </div>
+
+    <div class="health-score-breakdown">
+
+        <div class="health-component">
+            <div class="health-component-label">
+                Profitability
+            </div>
+
+            <div class="health-component-value">
+                {{ latest_ratio.profitability_score|floatformat:1 }}
+                <span>/ 25</span>
+            </div>
+
+            <div class="health-progress">
+                <div
+                    class="health-progress-fill"
+                    style="width: {% widthratio latest_ratio.profitability_score 25 100 %}%;">
+                </div>
+            </div>
+        </div>
+
+        <div class="health-component">
+            <div class="health-component-label">
+                Cash Generation
+            </div>
+
+            <div class="health-component-value">
+                {{ latest_ratio.cash_flow_score|floatformat:1 }}
+                <span>/ 20</span>
+            </div>
+
+            <div class="health-progress">
+                <div
+                    class="health-progress-fill"
+                    style="width: {% widthratio latest_ratio.cash_flow_score 20 100 %}%;">
+                </div>
+            </div>
+        </div>
+
+        <div class="health-component">
+            <div class="health-component-label">
+                Liquidity
+            </div>
+
+            <div class="health-component-value">
+                {{ latest_ratio.liquidity_score|floatformat:1 }}
+                <span>/ 10</span>
+            </div>
+
+            <div class="health-progress">
+                <div
+                    class="health-progress-fill"
+                    style="width: {% widthratio latest_ratio.liquidity_score 10 100 %}%;">
+                </div>
+            </div>
+        </div>
+
+        <div class="health-component">
+            <div class="health-component-label">
+                Leverage
+            </div>
+
+            <div class="health-component-value">
+                {{ latest_ratio.leverage_score|floatformat:1 }}
+                <span>/ 15</span>
+            </div>
+
+            <div class="health-progress">
+                <div
+                    class="health-progress-fill"
+                    style="width: {% widthratio latest_ratio.leverage_score 15 100 %}%;">
+                </div>
+            </div>
+        </div>
+
+        <div class="health-component">
+            <div class="health-component-label">
+                Efficiency
+            </div>
+
+            <div class="health-component-value">
+                {{ latest_ratio.efficiency_score|floatformat:1 }}
+                <span>/ 25</span>
+            </div>
+
+            <div class="health-progress">
+                <div
+                    class="health-progress-fill"
+                    style="width: {% widthratio latest_ratio.efficiency_score 25 100 %}%;">
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="health-score-footer">
+
+        <span>Trend adjustment</span>
+
+        <strong class="
+            {% if latest_ratio.trend_adjustment > 0 %}
+                health-trend-positive
+            {% elif latest_ratio.trend_adjustment < 0 %}
+                health-trend-negative
+            {% else %}
+                health-trend-neutral
+            {% endif %}
+        ">
+            {% if latest_ratio.trend_adjustment > 0 %}+{% endif %}
+            {{ latest_ratio.trend_adjustment|floatformat:2 }}
+        </strong>
+
+    </div>
+
+</div>
+
+{% endif %}
+        
+<div class="dashboard-card">
+    <div class="card-header">
+        <div>
+            <h2>Financial Ratios</h2>
+            <p>
+                {% if selected_period == "annual" %}
+                    FY{{ latest_ratio.fiscal_year }}
+                {% else %}
+                    FY{{ latest_ratio.fiscal_year }}
+                    {{ latest_ratio.fiscal_period }}
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+
+
+    <div class="ratio-grid">
+    <div class="ratio-item">
+    <span class="ratio-label">Gross Margin</span>
+
+    <strong>
+        {{ latest_ratio.gross_margin|percentage:1 }}
+    </strong>
+
+    {% if prior_ratio %}
+        {% with change=latest_ratio.gross_margin|ratio_change:prior_ratio.gross_margin %}
+            <div class="
+                ratio-change
+                {% if change > 0 %}
+                    ratio-positive
+                {% elif change < 0 %}
+                    ratio-negative
+                {% else %}
+                    ratio-neutral
+                {% endif %}
+            ">
+                {% if change > 0 %}
+                    ▲
+                {% elif change < 0 %}
+                    ▼
+                {% else %}
+                    —
+                {% endif %}
+
+                {{ change|percentage_points:1 }}
+                <span>vs prior year</span>
+            </div>
+        {% endwith %}
+    {% endif %}
+</div>
+
+        {% with change=latest_ratio.operating_margin|ratio_change:prior_ratio.operating_margin %}
+<div class="ratio-item">
+    <span class="ratio-label">Operating Margin</span>
+    <strong>{{ latest_ratio.operating_margin|percentage:1 }}</strong>
+
+    {% if change is not None %}
+        <div class="ratio-change
+            {% if change > 0 %}
+                ratio-positive
+            {% elif change < 0 %}
+                ratio-negative
+            {% else %}
+                ratio-neutral
+            {% endif %}
+        ">
+            {% if change > 0 %}▲{% elif change < 0 %}▼{% else %}—{% endif %}
+            {{ change|percentage_points:1 }}
+            <span>vs prior year</span>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}
+
+        {% with change=latest_ratio.net_margin|ratio_change:prior_ratio.net_margin %}
+<div class="ratio-item">
+    <span class="ratio-label">Net Margin</span>
+    <strong>{{ latest_ratio.net_margin|percentage:1 }}</strong>
+
+    {% if change is not None %}
+        <div class="ratio-change
+            {% if change > 0 %}
+                ratio-positive
+            {% elif change < 0 %}
+                ratio-negative
+            {% else %}
+                ratio-neutral
+            {% endif %}
+        ">
+            {% if change > 0 %}▲{% elif change < 0 %}▼{% else %}—{% endif %}
+            {{ change|percentage_points:1 }}
+            <span>vs prior year</span>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}
+
+        {% with change=latest_ratio.free_cash_flow_margin|ratio_change:prior_ratio.free_cash_flow_margin %}
+<div class="ratio-item">
+    <span class="ratio-label">Free Cash Flow Margin</span>
+    <strong>{{ latest_ratio.free_cash_flow_margin|percentage:1 }}</strong>
+
+    {% if change is not None %}
+        <div class="ratio-change
+            {% if change > 0 %}
+                ratio-positive
+            {% elif change < 0 %}
+                ratio-negative
+            {% else %}
+                ratio-neutral
+            {% endif %}
+        ">
+            {% if change > 0 %}▲{% elif change < 0 %}▼{% else %}—{% endif %}
+            {{ change|percentage_points:1 }}
+            <span>vs prior year</span>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}
+
+       {% with change=latest_ratio.current_ratio|relative_change:prior_ratio.current_ratio %}
+<div class="ratio-item">
+    <span class="ratio-label">Current Ratio</span>
+    <strong>{{ latest_ratio.current_ratio|floatformat:2 }}</strong>
+
+    {% if change is not None %}
+        <div class="ratio-change ratio-neutral">
+            {% if change > 0 %}▲{% elif change < 0 %}▼{% else %}—{% endif %}
+            {{ change|floatformat:1 }}%
+            <span>vs prior year</span>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}
+
+
+        <!------------------------ Debt to Equity. --------------------->
+        {% with change=latest_ratio.debt_to_equity|relative_change:prior_ratio.debt_to_equity %}
+        <div class="ratio-item">
+            <span class="ratio-label">Debt to Equity</span>
+
+            <strong>
+                {{ latest_ratio.debt_to_equity|floatformat:2 }}
+            </strong>
+
+            {% if change is not None %}
+                <div class="ratio-change
+                    {% if change < 0 %}
+                        ratio-positive
+                    {% elif change > 0 %}
+                        ratio-negative
+                    {% else %}
+                        ratio-neutral
+                    {% endif %}
+                ">
+                    {% if change < 0 %}
+                        ▼
+                    {% elif change > 0 %}
+                        ▲
+                    {% else %}
+                        —
+                    {% endif %}
+
+                    {{ change|floatformat:1 }}%
+                    <span>vs prior year</span>
+                </div>
+            {% endif %}
+        </div>
+        {% endwith %}
+
+        <!--------------------------------------------------------->
+
+
+       {% with change=latest_ratio.return_on_assets|ratio_change:prior_ratio.return_on_assets %}
+<div class="ratio-item">
+    <span class="ratio-label">Return on Assets</span>
+    <strong>{{ latest_ratio.return_on_assets|percentage:1 }}</strong>
+
+    {% if change is not None %}
+        <div class="ratio-change
+            {% if change > 0 %}
+                ratio-positive
+            {% elif change < 0 %}
+                ratio-negative
+            {% else %}
+                ratio-neutral
+            {% endif %}
+        ">
+            {% if change > 0 %}▲{% elif change < 0 %}▼{% else %}—{% endif %}
+            {{ change|percentage_points:1 }}
+            <span>vs prior year</span>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}
+
+       {% with change=latest_ratio.return_on_equity|ratio_change:prior_ratio.return_on_equity %}
+<div class="ratio-item">
+    <span class="ratio-label">Return on Equity</span>
+    <strong>{{ latest_ratio.return_on_equity|percentage:1 }}</strong>
+
+    {% if change is not None %}
+        <div class="ratio-change
+            {% if change > 0 %}
+                ratio-positive
+            {% elif change < 0 %}
+                ratio-negative
+            {% else %}
+                ratio-neutral
+            {% endif %}
+        ">
+            {% if change > 0 %}▲{% elif change < 0 %}▼{% else %}—{% endif %}
+            {{ change|percentage_points:1 }}
+            <span>vs prior year</span>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}
+
+        {% with change=latest_ratio.asset_turnover|relative_change:prior_ratio.asset_turnover %}
+<div class="ratio-item">
+    <span class="ratio-label">Asset Turnover</span>
+    <strong>{{ latest_ratio.asset_turnover|floatformat:2 }}</strong>
+
+    {% if change is not None %}
+        <div class="ratio-change
+            {% if change > 0 %}
+                ratio-positive
+            {% elif change < 0 %}
+                ratio-negative
+            {% else %}
+                ratio-neutral
+            {% endif %}
+        ">
+            {% if change > 0 %}▲{% elif change < 0 %}▼{% else %}—{% endif %}
+            {{ change|floatformat:1 }}%
+            <span>vs prior year</span>
+        </div>
+    {% endif %}
+</div>
+{% endwith %}
+    </div>
+</div>
+{% else %}
+<div class="dashboard-card">
+    <p>No calculated ratios are available for this period.</p>
+</div>
+{% endif %}
+
+
+<!---------------------------------------------------------------------------->
+    {% elif selected_tab == "filings" %}
+
+        <section class="workspace-panel">
+
+            <h2>
+                SEC Filings
+            </h2>
+
+            <p>
+                Searchable SEC filing history will appear here.
+            </p>
+
+        </section>
+
+    {% elif selected_tab == "ai" %}
+
+        <section class="workspace-panel">
+
+            <h2>
+                AI Research
+            </h2>
+
+            <p>
+                Ask questions using the company’s normalized
+                financial data and filings.
+            </p>
+
+        </section>
+
+    {% endif %}
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const dataElement = document.getElementById(
+        "financial-chart-data"
+    );
+
+    const canvas = document.getElementById(
+        "financialExplorerChart"
+    );
+
+    if (!dataElement || !canvas || typeof Chart === "undefined") {
+        return;
+    }
+
+    const explorerData = JSON.parse(
+        dataElement.textContent
+    );
+
+    const metricButtons = document.querySelectorAll(
+        "[data-chart-metric]"
+    );
+
+    const titleElement = document.getElementById(
+        "chartExplorerTitle"
+    );
+
+    const descriptionElement = document.getElementById(
+        "chartExplorerDescription"
+    );
+
+    const latestValueElement = document.getElementById(
+        "chartLatestValue"
+    );
+
+    const latestPeriodElement = document.getElementById(
+        "chartLatestPeriod"
+    );
+
+    const periodChangeElement = document.getElementById(
+        "chartPeriodChange"
+    );
+
+    const periodCountElement = document.getElementById(
+        "chartPeriodCount"
+    );
+
+    let currentMetricName =
+        explorerData.default_metric;
+
+    function compactCurrency(value) {
+        if (value === null || value === undefined) {
+            return "—";
+        }
+
+        const numericValue = Number(value);
+        const sign = numericValue < 0 ? "-" : "";
+        const absoluteValue = Math.abs(numericValue);
+
+        if (absoluteValue >= 1_000_000_000_000) {
+            return (
+                sign +
+                "$" +
+                (absoluteValue / 1_000_000_000_000).toFixed(1) +
+                "T"
+            );
+        }
+
+        if (absoluteValue >= 1_000_000_000) {
+            return (
+                sign +
+                "$" +
+                (absoluteValue / 1_000_000_000).toFixed(1) +
+                "B"
+            );
+        }
+
+        if (absoluteValue >= 1_000_000) {
+            return (
+                sign +
+                "$" +
+                (absoluteValue / 1_000_000).toFixed(1) +
+                "M"
+            );
+        }
+
+        if (absoluteValue >= 1_000) {
+            return (
+                sign +
+                "$" +
+                (absoluteValue / 1_000).toFixed(1) +
+                "K"
+            );
+        }
+
+        return (
+            sign +
+            "$" +
+            absoluteValue.toLocaleString(undefined, {
+                maximumFractionDigits: 2,
+            })
+        );
+    }
+
+    function formatMetricValue(value, format) {
+        if (
+            value === null ||
+            value === undefined ||
+            Number.isNaN(Number(value))
+        ) {
+            return "—";
+        }
+
+        const numericValue = Number(value);
+
+        if (format === "per_share") {
+            return "$" + numericValue.toFixed(2);
+        }
+
+        if (format === "percentage") {
+            return numericValue.toFixed(1) + "%";
+        }
+
+        if (format === "number") {
+            return numericValue.toLocaleString();
+        }
+
+        return compactCurrency(numericValue);
+    }
+
+    function getCurrentMetric() {
+        return explorerData.metrics[
+            currentMetricName
+        ];
+    }
+
+    function getReportedValues(metric) {
+        return metric.values
+            .map(function (value, index) {
+                if (value === null || value === undefined) {
+                    return null;
+                }
+
+                return {
+                    value: Number(value),
+                    label: explorerData.labels[index],
+                };
+            })
+            .filter(function (item) {
+                return item !== null;
+            });
+    }
+
+    function resetChangeClasses() {
+        periodChangeElement.classList.remove(
+            "chart-change-positive",
+            "chart-change-negative",
+            "chart-change-neutral"
+        );
+    }
+
+    function updateSummary(metric) {
+        const reportedValues =
+            getReportedValues(metric);
+
+        periodCountElement.textContent =
+            reportedValues.length.toLocaleString();
+
+        if (!reportedValues.length) {
+            latestValueElement.textContent = "—";
+            latestPeriodElement.textContent = "—";
+            periodChangeElement.textContent = "—";
+
+            resetChangeClasses();
+
+            periodChangeElement.classList.add(
+                "chart-change-neutral"
+            );
+
+            return;
+        }
+
+        const latest =
+            reportedValues[reportedValues.length - 1];
+
+        latestValueElement.textContent =
+            formatMetricValue(
+                latest.value,
+                metric.format
+            );
+
+        latestPeriodElement.textContent =
+            latest.label;
+
+        resetChangeClasses();
+
+        if (reportedValues.length < 2) {
+            periodChangeElement.textContent = "—";
+
+            periodChangeElement.classList.add(
+                "chart-change-neutral"
+            );
+
+            return;
+        }
+
+        const previous =
+            reportedValues[reportedValues.length - 2];
+
+        if (previous.value === 0) {
+            periodChangeElement.textContent = "—";
+
+            periodChangeElement.classList.add(
+                "chart-change-neutral"
+            );
+
+            return;
+        }
+
+        const percentageChange =
+            (
+                (
+                    latest.value -
+                    previous.value
+                ) /
+                Math.abs(previous.value)
+            ) * 100;
+
+        if (percentageChange > 0) {
+            periodChangeElement.textContent =
+                "▲ " +
+                Math.abs(percentageChange).toFixed(1) +
+                "%";
+
+            periodChangeElement.classList.add(
+                "chart-change-positive"
+            );
+        } else if (percentageChange < 0) {
+            periodChangeElement.textContent =
+                "▼ " +
+                Math.abs(percentageChange).toFixed(1) +
+                "%";
+
+            periodChangeElement.classList.add(
+                "chart-change-negative"
+            );
+        } else {
+            periodChangeElement.textContent =
+                "— 0.0%";
+
+            periodChangeElement.classList.add(
+                "chart-change-neutral"
+            );
+        }
+    }
+
+    const explorerChart = new Chart(canvas, {
+        type: "line",
+
+        data: {
+            labels: explorerData.labels,
+            datasets: [
+                {
+                    label: "",
+                    data: [],
+                    borderColor: "#2563eb",
+                    backgroundColor:
+                        "rgba(37, 99, 235, 0.08)",
+                    fill: true,
+                    spanGaps: true,
+                    borderWidth: 3,
+                    tension: 0.32,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHitRadius: 15,
+                },
+            ],
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+
+            interaction: {
+                mode: "index",
+                intersect: false,
+            },
+
+            plugins: {
+                legend: {
+                    display: false,
+                },
+
+                tooltip: {
+                    displayColors: false,
+
+                    callbacks: {
+                        label: function (context) {
+                            const metric =
+                                getCurrentMetric();
+
+                            if (!metric) {
+                                return context.formattedValue;
+                            }
+
+                            return formatMetricValue(
+                                context.parsed.y,
+                                metric.format
+                            );
+                        },
+                    },
+                },
+            },
+
+            scales: {
+                x: {
+                    grid: {
+                        display: false,
+                    },
+
+                    border: {
+                        display: false,
+                    },
+
+                    ticks: {
+                        color: "#6b7280",
+                        maxRotation: 0,
+                        autoSkip: true,
+                    },
+                },
+
+                y: {
+                    beginAtZero: false,
+
+                    grid: {
+                        color: "#f1f5f9",
+                    },
+
+                    border: {
+                        display: false,
+                    },
+
+                    ticks: {
+                        color: "#6b7280",
+
+                        callback: function (value) {
+                            const metric =
+                                getCurrentMetric();
+
+                            if (!metric) {
+                                return value;
+                            }
+
+                            return formatMetricValue(
+                                value,
+                                metric.format
+                            );
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    function selectMetric(metricName) {
+        const metric =
+            explorerData.metrics[metricName];
+
+        if (!metric) {
+            return;
+        }
+
+        currentMetricName = metricName;
+
+        metricButtons.forEach(function (button) {
+            const isActive =
+                button.dataset.chartMetric ===
+                metricName;
+
+            button.classList.toggle(
+                "active",
+                isActive
+            );
+
+            button.setAttribute(
+                "aria-pressed",
+                isActive ? "true" : "false"
+            );
+        });
+
+        titleElement.textContent =
+            metric.label;
+
+        descriptionElement.textContent =
+            metric.description;
+
+        explorerChart.data.datasets[0].label =
+            metric.label;
+
+        explorerChart.data.datasets[0].data =
+            metric.values;
+
+        explorerChart.update();
+
+        updateSummary(metric);
+    }
+
+    metricButtons.forEach(function (button) {
+        button.addEventListener(
+            "click",
+            function () {
+                selectMetric(
+                    button.dataset.chartMetric
+                );
+            }
+        );
+    });
+
+    if (currentMetricName) {
+        selectMetric(currentMetricName);
+    }
+});
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const statementTabs = document.querySelectorAll(
+            "[data-statement-target]"
+        );
+
+        const statementPanels = document.querySelectorAll(
+            ".statement-panel"
+        );
+
+        statementTabs.forEach(function (tab) {
+            tab.addEventListener("click", function () {
+                const targetId = tab.dataset.statementTarget;
+
+                statementTabs.forEach(function (item) {
+                    item.classList.remove("active");
+                });
+
+                statementPanels.forEach(function (panel) {
+                    panel.classList.add("d-none");
+                });
+
+                tab.classList.add("active");
+
+                const targetPanel = document.getElementById(
+                    targetId
+                );
+
+                if (targetPanel) {
+                    targetPanel.classList.remove("d-none");
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>
+</body>
+</html>

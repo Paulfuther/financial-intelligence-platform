@@ -1203,20 +1203,30 @@ def subscription_summary(request):
 
 def parse_import_rows(csv_file, account_name):
     decoded_file = csv_file.read().decode("utf-8-sig").splitlines()
+    # Look for a recognized header row.
+    # Some exports (Canadian Tire) include account metadata above the transactions.
+    header_index = None
+    for i, line in enumerate(decoded_file):
+        line_lower = line.strip().lower()
+        if (
+            line_lower.startswith("ref,transaction date")
+            or line_lower.startswith("transaction_date")
+            or line_lower.startswith("transaction date")
+        ):
+            header_index = i
+            break
+    if header_index is not None:
+        header_line = decoded_file[header_index]
+        delimiter = "\t" if "\t" in header_line else ","
+        reader = csv.DictReader(
+            decoded_file[header_index:],
+            delimiter=delimiter,
+        )
 
-    first_line = decoded_file[0]
-    delimiter = "\t" if "\t" in first_line else ","
-
-    first_line_lower = first_line.lower()
-
-    has_header = (
-        first_line_lower.startswith("transaction_date")
-        or first_line_lower.startswith("transaction date")
-    )
-
-    if has_header:
-        reader = csv.DictReader(decoded_file, delimiter=delimiter)
     else:
+        # Fallback for older/simple bank exports with no header
+        first_line = decoded_file[0]
+        delimiter = "\t" if "\t" in first_line else ","
         reader = csv.DictReader(
             decoded_file,
             fieldnames=["date", "description", "dr", "cr", "balance"],
