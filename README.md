@@ -1,4 +1,4 @@
-# Bank Research Platform
+# Financial Intelligence Research Platform
 
 A Django-based personal finance, banking, and investment research platform.
 
