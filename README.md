@@ -1,6 +1,6 @@
-# Financial Intelligence Research Platform
+# Financial Intelligence Platform
 
-A Django-based personal finance, banking, and investment research platform.
+Financial Intelligence Platform is a Django-based application that combines personal finance management, banking analytics, and investment research into a single integrated workspace.
 
 Originally built as a personal finance tracker, the application has expanded into a financial research environment capable of importing banking transactions, analyzing spending habits, and researching publicly traded companies using SEC EDGAR filings.
 
