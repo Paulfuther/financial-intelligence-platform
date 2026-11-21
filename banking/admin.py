@@ -1,6 +1,6 @@
 from django.contrib import admin
-from .models import BankTransaction
-from .models import DebtAccount, Category
+
+from .models import BankTransaction, Category, DebtAccount, ImportLog
 
 @admin.register(BankTransaction)
 class BankTransactionAdmin(admin.ModelAdmin):
@@ -52,3 +52,22 @@ class CategoryAdmin(admin.ModelAdmin):
     list_filter = ("is_active",)
     search_fields = ("name",)
     ordering = ("name",)
+
+
+@admin.register(ImportLog)
+class ImportLogAdmin(admin.ModelAdmin):
+    list_display = (
+        "id",
+        "imported_at",
+        "account_name",
+        "file_name",
+        "imported_count",
+        "skipped_count",
+    )
+    list_filter = ("account_name",)
+    search_fields = ("file_name", "account_name")
+    readonly_fields = (
+        "imported_at",
+        "transaction_hashes",
+    )
+    ordering = ("-imported_at",)

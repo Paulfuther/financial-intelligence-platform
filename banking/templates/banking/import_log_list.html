@@ -21,9 +21,14 @@
       <div class="text-muted">History of uploaded bank files</div>
     </div>
 
-    <a href="{% url 'banking:dashboard' %}" class="btn btn-outline-secondary">
-      Dashboard
-    </a>
+    <div class="d-flex gap-2">
+      <a href="{% url 'banking:mirror_cleanup' %}" class="btn btn-outline-danger">
+        Mirror cleanup
+      </a>
+      <a href="{% url 'banking:dashboard' %}" class="btn btn-outline-secondary">
+        Dashboard
+      </a>
+    </div>
   </div>
 
   <div class="card shadow-sm border-0">
