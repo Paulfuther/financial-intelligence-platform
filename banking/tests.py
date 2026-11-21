@@ -7,6 +7,9 @@ from django.test import SimpleTestCase, TransactionTestCase
 
 from banking.import_services import (
     build_hash,
+    find_source_mirrors_of_targets,
+    persist_csv_import,
+    resolve_target_transactions_for_mirror_cleanup,
     transaction_is_duplicate,
     transactions_for_import_log,
 )
@@ -244,3 +247,166 @@ class Migration0007SqlTests(SimpleTestCase):
                 "SELECT format('%I', 'bank_transactions')",
                 (),
             )
+
+
+class MirrorTransactionCleanupTests(TransactionTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        enable_banking_tables()
+
+    @classmethod
+    def tearDownClass(cls):
+        disable_banking_tables()
+        super().tearDownClass()
+
+    def test_removes_only_exact_mirrors(self):
+        target_account = "Capital One Card"
+        source_account = "Canadian Tire Mastercard"
+        shared = {
+            "transaction_date": date(2025, 11, 18),
+            "description": "FINCH NISSAN",
+            "dr": Decimal("1410.57"),
+            "cr": None,
+            "balance": None,
+        }
+        BankTransaction.objects.create(
+            **shared,
+            category="Vehicle",
+            import_hash=build_hash(
+                shared["transaction_date"],
+                shared["description"],
+                shared["dr"],
+                shared["cr"],
+                shared["balance"],
+                target_account,
+            ),
+            account_name=target_account,
+        )
+        BankTransaction.objects.create(
+            **shared,
+            category="Vehicle",
+            import_hash=build_hash(
+                shared["transaction_date"],
+                shared["description"],
+                shared["dr"],
+                shared["cr"],
+                shared["balance"],
+                source_account,
+            ),
+            account_name=source_account,
+        )
+        BankTransaction.objects.create(
+            transaction_date=date(2025, 11, 19),
+            description="CANADIAN TIRE STORE #123",
+            dr=Decimal("45.00"),
+            category="Shopping",
+            import_hash=build_hash(
+                date(2025, 11, 19),
+                "CANADIAN TIRE STORE #123",
+                Decimal("45.00"),
+                None,
+                None,
+                source_account,
+            ),
+            account_name=source_account,
+        )
+
+        targets = resolve_target_transactions_for_mirror_cleanup(target_account)
+        mirrors = find_source_mirrors_of_targets(source_account, targets)
+        self.assertEqual(mirrors.count(), 1)
+        self.assertEqual(mirrors.first().description, "FINCH NISSAN")
+
+    def test_match_import_log_limits_targets(self):
+        target_account = "Capital One Card"
+        source_account = "Canadian Tire Mastercard"
+        row = {
+            "transaction_date": date(2025, 11, 19),
+            "description": "PETRO-CANADA 33485",
+            "dr": Decimal("30.00"),
+            "cr": None,
+            "balance": None,
+        }
+        target_hash = build_hash(
+            row["transaction_date"],
+            row["description"],
+            row["dr"],
+            row["cr"],
+            row["balance"],
+            target_account,
+        )
+        BankTransaction.objects.create(
+            **row,
+            category="Gas",
+            import_hash=target_hash,
+            account_name=target_account,
+        )
+        BankTransaction.objects.create(
+            **row,
+            category="Gas",
+            import_hash=build_hash(
+                row["transaction_date"],
+                row["description"],
+                row["dr"],
+                row["cr"],
+                row["balance"],
+                source_account,
+            ),
+            account_name=source_account,
+        )
+        BankTransaction.objects.create(
+            transaction_date=date(2025, 10, 1),
+            description="OLD CAPITAL ONE",
+            dr=Decimal("5.00"),
+            category="Misc",
+            import_hash=build_hash(
+                date(2025, 10, 1),
+                "OLD CAPITAL ONE",
+                Decimal("5.00"),
+                None,
+                None,
+                target_account,
+            ),
+            account_name=target_account,
+        )
+
+        import_log = ImportLog.objects.create(
+            file_name="statement.csv",
+            account_name=target_account,
+            imported_count=1,
+            latest_transaction_date=row["transaction_date"],
+            transaction_hashes=[target_hash],
+        )
+
+        targets = resolve_target_transactions_for_mirror_cleanup(
+            target_account,
+            match_import_log_id=import_log.id,
+        )
+        self.assertEqual(list(targets.values_list("pk", flat=True)), [BankTransaction.objects.get(import_hash=target_hash).pk])
+        mirrors = find_source_mirrors_of_targets(source_account, targets)
+        self.assertEqual(mirrors.count(), 1)
+
+    def test_persist_csv_import_writes_import_log_with_hashes(self):
+        rows = [
+            {
+                "transaction_date": "2025-11-19",
+                "description": "TEST MERCHANT",
+                "dr": "12.50",
+                "cr": "",
+                "balance": "",
+                "category": "Shopping",
+                "import_hash": build_hash(
+                    date(2025, 11, 19),
+                    "TEST MERCHANT",
+                    Decimal("12.50"),
+                    None,
+                    None,
+                    "Capital One Card",
+                ),
+                "account_name": "Capital One Card",
+            }
+        ]
+        import_log, counts = persist_csv_import(rows, "Capital One Card", "t.csv")
+        self.assertEqual(counts["imported"], 1)
+        self.assertEqual(len(import_log.transaction_hashes), 1)
+        self.assertEqual(import_log.account_name, "Capital One Card")

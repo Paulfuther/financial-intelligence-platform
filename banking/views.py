@@ -11,11 +11,15 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from .forms import BankImportForm
+from .forms import ACCOUNT_CHOICES, BankImportForm, MirrorCleanupForm
 from .import_services import (
+    apply_category_rules,
     build_hash,
+    find_source_mirrors_of_targets,
     parse_date,
     parse_money,
+    persist_csv_import,
+    resolve_target_transactions_for_mirror_cleanup,
     transaction_is_duplicate,
     transactions_for_import_log,
 )
@@ -622,13 +626,6 @@ def category_detail(request, category):
     }
 
     return render(request, "banking/category_detail.html", context)
-
-def apply_category_rules():
-    for rule in CategoryRule.objects.all():
-        BankTransaction.objects.filter(
-            description__icontains=rule.keyword,
-            category="Uncategorized",
-        ).update(category=rule.category)
 
 def import_log_list(request):
     logs = (
@@ -1407,59 +1404,7 @@ def confirm_bank_csv_import(request):
     account_name = request.session.get("pending_import_account")
     file_name = request.session.get("pending_import_file")
 
-    imported = 0
-    skipped = 0
-    errors = 0
-    latest_transaction_date = None
-    transaction_hashes = []
-
-    for row in rows:
-        transaction_date = parse_date(row["transaction_date"])
-
-        dr = parse_money(row["dr"])
-        cr = parse_money(row["cr"])
-        balance = parse_money(row["balance"])
-
-        if transaction_is_duplicate(
-            row["account_name"],
-            transaction_date,
-            row["description"],
-            dr,
-            cr,
-            balance,
-            row["import_hash"],
-        ):
-            skipped += 1
-            continue
-
-        BankTransaction.objects.create(
-            transaction_date=transaction_date,
-            description=row["description"],
-            dr=dr,
-            cr=cr,
-            balance=balance,
-            category=row["category"],
-            import_hash=row["import_hash"],
-            account_name=row["account_name"],
-        )
-
-        imported += 1
-        transaction_hashes.append(row["import_hash"])
-
-        if latest_transaction_date is None or transaction_date > latest_transaction_date:
-            latest_transaction_date = transaction_date
-
-    apply_category_rules()
-
-    ImportLog.objects.create(
-        file_name=file_name,
-        account_name=account_name,
-        imported_count=imported,
-        skipped_count=skipped,
-        error_count=errors,
-        latest_transaction_date=latest_transaction_date,
-        transaction_hashes=transaction_hashes,
-    )
+    import_log, counts = persist_csv_import(rows, account_name, file_name)
 
     request.session.pop("pending_import_rows", None)
     request.session.pop("pending_import_account", None)
@@ -1467,10 +1412,95 @@ def confirm_bank_csv_import(request):
 
     messages.success(
         request,
-        f"Import complete. Imported: {imported}, skipped duplicates: {skipped}, errors: {errors}."
+        (
+            f"Import complete (log #{import_log.id}). "
+            f"Imported: {counts['imported']}, skipped duplicates: {counts['skipped']}, "
+            f"errors: {counts['errors']}."
+        ),
     )
 
     return redirect("banking:dashboard")
+
+
+def mirror_cleanup(request):
+    mirrors = []
+    error = None
+    summary = {}
+    preview_form = None
+
+    if request.method == "POST" and request.POST.get("confirm") == "1":
+        source = request.POST.get("source_account")
+        target = request.POST.get("target_account")
+        log_id = request.POST.get("match_import_log_id")
+        log_id = int(log_id) if log_id else None
+        date_from = parse_date(request.POST.get("transaction_date_from"))
+        date_to = parse_date(request.POST.get("transaction_date_to"))
+
+        try:
+            targets = resolve_target_transactions_for_mirror_cleanup(
+                target,
+                match_import_log_id=log_id,
+                transaction_date_from=date_from,
+                transaction_date_to=date_to,
+            )
+            mirrors = list(find_source_mirrors_of_targets(source, targets))
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("banking:mirror_cleanup")
+        except ImportLog.DoesNotExist:
+            messages.error(request, "Import log not found.")
+            return redirect("banking:mirror_cleanup")
+
+        if not mirrors:
+            messages.warning(request, "No mirror transactions to delete.")
+            return redirect("banking:mirror_cleanup")
+
+        ids = [tx.pk for tx in mirrors]
+        deleted_count, _ = BankTransaction.objects.filter(pk__in=ids).delete()
+        messages.success(
+            request,
+            f"Removed {deleted_count} duplicate transaction(s) from {source}.",
+        )
+        return redirect("banking:import_log_list")
+
+    form = MirrorCleanupForm(request.GET or None)
+    if form.is_valid():
+        preview_form = form
+        source = form.cleaned_data["source_account"]
+        target = form.cleaned_data["target_account"]
+        log_id = form.cleaned_data.get("match_import_log_id")
+        try:
+            if log_id and not ImportLog.objects.filter(pk=log_id).exists():
+                raise ImportLog.DoesNotExist
+            targets = resolve_target_transactions_for_mirror_cleanup(
+                target,
+                match_import_log_id=log_id,
+                transaction_date_from=form.cleaned_data.get("transaction_date_from"),
+                transaction_date_to=form.cleaned_data.get("transaction_date_to"),
+            )
+            mirrors = list(find_source_mirrors_of_targets(source, targets))
+            summary = {
+                "source": source,
+                "target": target,
+                "target_count": targets.count(),
+                "mirror_count": len(mirrors),
+            }
+        except ValueError as exc:
+            error = str(exc)
+        except ImportLog.DoesNotExist:
+            error = "Import log not found."
+
+    return render(
+        request,
+        "banking/mirror_cleanup.html",
+        {
+            "form": form,
+            "preview_form": preview_form,
+            "mirrors": mirrors,
+            "summary": summary,
+            "error": error,
+        },
+    )
 
 def debt_dashboard(request):
     debts = DebtAccount.objects.filter(is_active=True)
