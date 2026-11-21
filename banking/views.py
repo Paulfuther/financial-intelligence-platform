@@ -11,7 +11,13 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
-from .forms import ACCOUNT_CHOICES, BankImportForm, MirrorCleanupForm
+from .category_services import (
+    apply_matching_rule_for_keyword,
+    apply_rules_to_queryset,
+    preview_rule_reapply,
+    rename_category,
+)
+from .forms import ACCOUNT_CHOICES, BankImportForm, CategoryForm, CategoryRenameForm, MirrorCleanupForm
 from .import_services import (
     apply_category_rules,
     build_hash,
@@ -357,7 +363,8 @@ def update_transaction_category(request, transaction_id):
     old_category = transaction.category or ""
 
     transaction.category = category
-    transaction.save(update_fields=["category"])
+    transaction.category_locked = True
+    transaction.save(update_fields=["category", "category_locked"])
 
     return JsonResponse(
         {
@@ -368,38 +375,6 @@ def update_transaction_category(request, transaction_id):
         }
     )
 
-def match_category(description, rules):
-    description = description.upper()
-
-    best_match = None
-    best_length = 0
-
-    for rule in rules:
-        keyword = rule.keyword.upper()
-
-        if keyword in description:
-            if len(keyword) > best_length:
-                best_match = rule
-                best_length = len(keyword)
-
-    if best_match:
-        return best_match.category
-
-    return None
-
-def apply_rule_to_transaction(tx):
-    rules = CategoryRule.objects.all()
-    rules = sorted(rules, key=lambda r: len(r.keyword), reverse=True)
-
-    tx_desc = tx.description.upper()
-
-    for rule in rules:
-        if rule.keyword.upper() in tx_desc:
-            tx.category = rule.category
-            return tx
-
-    return tx
-
 def rules_management(request):
     uncat_q = request.GET.get("uncat_q", "").strip()
     uncat_sort = request.GET.get("uncat_sort", "total")
@@ -408,22 +383,31 @@ def rules_management(request):
         keyword = request.POST.get("keyword", "").strip()
         category = request.POST.get("category", "").strip()
 
+        action = request.POST.get("action", "add_rule")
+
+        if action == "reapply_rules":
+            updated = apply_rules_to_queryset()
+            messages.success(
+                request,
+                "Re-applied rules to {count} transaction(s).".format(count=updated),
+            )
+            return redirect("banking:rules_management")
+
+        if action == "delete_rule":
+            rule_id = request.POST.get("rule_id")
+            if rule_id:
+                CategoryRule.objects.filter(pk=rule_id).delete()
+                messages.success(request, "Rule deleted.")
+            return redirect("banking:rules_management")
+
         if keyword and category:
             CategoryRule.objects.get_or_create(
                 keyword=keyword,
                 category=category,
             )
-
-            transactions = BankTransaction.objects.filter(
-                Q(category="Uncategorized") |
-                Q(category="") |
-                Q(category__isnull=True)
-            )
-
-            for tx in transactions:
-                apply_rule_to_transaction(tx)
-                tx.save()
-
+            apply_matching_rule_for_keyword(keyword, category)
+            apply_rules_to_queryset(only_uncategorized=True)
+            messages.success(request, "Rule added and applied.")
         return redirect("banking:rules_management")
 
     rules = CategoryRule.objects.all().order_by("-keyword")
@@ -486,6 +470,8 @@ def rules_management(request):
     for row in category_rollup:
         row["rule_count"] = rule_count_map.get(row["category"], 0)
 
+    reapply_preview = preview_rule_reapply()
+
     context = {
         "rules": rules,
         "categories": categories,
@@ -493,6 +479,7 @@ def rules_management(request):
         "category_rollup": category_rollup,
         "uncat_q": uncat_q,
         "uncat_sort": uncat_sort,
+        "reapply_preview": reapply_preview,
     }
 
     return render(request, "banking/rules_management.html", context)
@@ -515,15 +502,23 @@ def edit_rule(request, rule_id):
             rule.save()
 
             if apply_to_existing:
-                BankTransaction.objects.filter(
-                    description__icontains=keyword
-                ).update(category=category)
+                apply_matching_rule_for_keyword(keyword, category)
 
         return redirect("banking:rules_management")
+
+    preview = None
+    if rule.keyword:
+        from .category_services import eligible_for_rule_application
+
+        matching = eligible_for_rule_application().filter(
+            description__icontains=rule.keyword,
+        )
+        preview = preview_rule_reapply(matching)
 
     return render(request, "banking/edit_rule.html", {
         "rule": rule,
         "categories": categories,
+        "preview": preview,
     })
 
 def rule_detail(request, rule_id):
@@ -557,12 +552,24 @@ def rule_detail(request, rule_id):
 def category_detail(request, category):
     start_date = request.GET.get("start_date")
     end_date = request.GET.get("end_date")
+    year = request.GET.get("year")
+    month = request.GET.get("month")
+    account = request.GET.get("account")
 
     transactions = (
         BankTransaction.objects
         .filter(category=category)
         .order_by("-transaction_date")
     )
+
+    if account:
+        transactions = transactions.filter(account_name=account)
+
+    if year:
+        transactions = transactions.filter(transaction_date__year=year)
+
+    if month:
+        transactions = transactions.filter(transaction_date__month=month)
 
     if start_date:
         transactions = transactions.filter(transaction_date__gte=start_date)
@@ -613,16 +620,46 @@ def category_detail(request, category):
         monthly_labels.append(f"{row['year']}-{row['month']:02d}")
         monthly_totals.append(float(row["total_spend"] or 0))
 
+    merchant_labels = []
+    merchant_totals = []
+    for row in vendor_summary:
+        label = (row["description"] or "Unknown")[:40]
+        merchant_labels.append(label)
+        merchant_totals.append(float(row["total_spend"] or 0))
+
+    years = (
+        BankTransaction.objects.filter(category=category)
+        .annotate(year_value=ExtractYear("transaction_date"))
+        .values_list("year_value", flat=True)
+        .distinct()
+        .order_by("-year_value")
+    )
+
+    accounts = (
+        BankTransaction.objects.filter(category=category)
+        .values_list("account_name", flat=True)
+        .distinct()
+        .order_by("account_name")
+    )
+
     context = {
         "category": category,
         "transactions": transactions,
         "vendor_summary": vendor_summary,
         "rules": rules,
         "summary": summary,
-        "monthly_labels": monthly_labels,
-        "monthly_totals": monthly_totals,
+        "monthly_labels_json": json.dumps(monthly_labels),
+        "monthly_totals_json": json.dumps(monthly_totals),
+        "merchant_labels_json": json.dumps(merchant_labels),
+        "merchant_totals_json": json.dumps(merchant_totals),
         "start_date": start_date,
         "end_date": end_date,
+        "years": years,
+        "months": MONTHS,
+        "accounts": accounts,
+        "selected_year": year,
+        "selected_month": month,
+        "selected_account": account,
     }
 
     return render(request, "banking/category_detail.html", context)
@@ -1590,8 +1627,21 @@ def debt_dashboard(request):
     return render(request, "banking/debt_dashboard.html", context)
 
 def category_summary(request):
+    year = request.GET.get("year")
+    month = request.GET.get("month")
+    account = request.GET.get("account")
+
+    transactions = BankTransaction.objects.all()
+
+    if account:
+        transactions = transactions.filter(account_name=account)
+    if year:
+        transactions = transactions.filter(transaction_date__year=year)
+    if month:
+        transactions = transactions.filter(transaction_date__month=month)
+
     summary = (
-        BankTransaction.objects
+        transactions
         .exclude(category__isnull=True)
         .exclude(category="")
         .exclude(category="Uncategorized")
@@ -1602,11 +1652,11 @@ def category_summary(request):
             average_spend=Avg("dr"),
             largest_spend=Max("dr"),
         )
-        .order_by("category")
+        .order_by("-total_spend")
     )
 
     totals = (
-        BankTransaction.objects
+        transactions
         .exclude(category__isnull=True)
         .exclude(category="")
         .exclude(category="Uncategorized")
@@ -1616,10 +1666,107 @@ def category_summary(request):
         )
     )
 
+    category_labels = []
+    category_totals = []
+    for row in summary:
+        category_labels.append(row["category"] or "Uncategorized")
+        category_totals.append(float(row["total_spend"] or 0))
+
+    years = (
+        BankTransaction.objects.annotate(year_value=ExtractYear("transaction_date"))
+        .values_list("year_value", flat=True)
+        .distinct()
+        .order_by("-year_value")
+    )
+
+    accounts = (
+        BankTransaction.objects.values_list("account_name", flat=True)
+        .distinct()
+        .order_by("account_name")
+    )
+
     return render(request, "banking/category_summary.html", {
         "summary": summary,
         "total_transactions": totals["total_transactions"] or 0,
         "grand_total": totals["grand_total"] or 0,
+        "category_labels_json": json.dumps(category_labels),
+        "category_totals_json": json.dumps(category_totals),
+        "years": years,
+        "months": MONTHS,
+        "accounts": accounts,
+        "selected_year": year,
+        "selected_month": month,
+        "selected_account": account,
     })
+
+
+def categories_management(request):
+    if request.method == "POST":
+        action = request.POST.get("action", "create")
+
+        if action == "create":
+            form = CategoryForm(request.POST)
+            if form.is_valid():
+                name = form.cleaned_data["name"].strip()
+                if name:
+                    Category.objects.get_or_create(
+                        name=name,
+                        defaults={"is_active": True},
+                    )
+                    messages.success(request, 'Category "{name}" saved.'.format(name=name))
+        elif action == "rename":
+            category_id = request.POST.get("category_id")
+            form = CategoryRenameForm(request.POST)
+            if category_id and form.is_valid():
+                cat = get_object_or_404(Category, pk=category_id)
+                new_name = form.cleaned_data["new_name"].strip()
+                if new_name and new_name != cat.name:
+                    rename_category(cat.name, new_name)
+                    cat.name = new_name
+                    cat.save(update_fields=["name"])
+                    messages.success(request, "Category renamed.")
+        elif action == "toggle_active":
+            category_id = request.POST.get("category_id")
+            if category_id:
+                cat = get_object_or_404(Category, pk=category_id)
+                cat.is_active = not cat.is_active
+                cat.save(update_fields=["is_active"])
+                state = "activated" if cat.is_active else "deactivated"
+                messages.success(
+                    request,
+                    'Category "{name}" {state}.'.format(name=cat.name, state=state),
+                )
+
+        return redirect("banking:categories_management")
+
+    categories = Category.objects.all().order_by("name")
+
+    usage = {
+        row["category"]: row["transaction_count"]
+        for row in BankTransaction.objects.values("category")
+        .annotate(transaction_count=Count("id"))
+    }
+
+    category_rows = []
+    for cat in categories:
+        category_rows.append(
+            {
+                "category": cat,
+                "transaction_count": usage.get(cat.name, 0),
+            }
+        )
+
+    context = {
+        "category_rows": category_rows,
+        "create_form": CategoryForm(),
+    }
+
+    return render(request, "banking/categories_management.html", context)
+
+
+@require_GET
+def rules_reapply_preview(request):
+    preview = preview_rule_reapply()
+    return JsonResponse({"success": True, **preview})
 
 

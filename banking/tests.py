@@ -13,7 +13,12 @@ from banking.import_services import (
     transaction_is_duplicate,
     transactions_for_import_log,
 )
-from banking.models import BankTransaction, CategoryRule, ImportLog
+from banking.category_services import (
+    apply_rules_to_queryset,
+    match_category_from_description,
+    preview_rule_reapply,
+)
+from banking.models import BankTransaction, Category, CategoryRule, ImportLog
 
 
 def enable_banking_tables():
@@ -410,3 +415,99 @@ class MirrorTransactionCleanupTests(TransactionTestCase):
         self.assertEqual(counts["imported"], 1)
         self.assertEqual(len(import_log.transaction_hashes), 1)
         self.assertEqual(import_log.account_name, "Capital One Card")
+
+
+class CategoryRuleAndChartTests(TransactionTestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        enable_banking_tables()
+
+    @classmethod
+    def tearDownClass(cls):
+        disable_banking_tables()
+        super().tearDownClass()
+
+    def setUp(self):
+        Category.objects.all().delete()
+        CategoryRule.objects.all().delete()
+        BankTransaction.objects.all().delete()
+
+    def test_longest_keyword_rule_wins(self):
+        CategoryRule.objects.create(keyword="BEER", category="Alcohol")
+        CategoryRule.objects.create(keyword="BEER STORE", category="Alcohol")
+
+        matched = match_category_from_description("LCBO BEER STORE #123")
+        self.assertEqual(matched, "Alcohol")
+
+        CategoryRule.objects.create(keyword="OPENAI", category="AI tools")
+        CategoryRule.objects.create(keyword="OPENAI CHATGPT", category="AI tools")
+
+        self.assertEqual(
+            match_category_from_description("OPENAI CHATGPT SUBSCRIPTION"),
+            "AI tools",
+        )
+
+    def test_manual_category_lock_not_overwritten(self):
+        CategoryRule.objects.create(keyword="LCBO", category="Alcohol")
+        tx = BankTransaction.objects.create(
+            transaction_date=date(2025, 6, 1),
+            description="LCBO STORE 441",
+            dr=Decimal("45.00"),
+            category="Groceries",
+            category_locked=True,
+            import_hash="manual-lock-test",
+            account_name="Personal",
+        )
+
+        apply_rules_to_queryset()
+        tx.refresh_from_db()
+        self.assertEqual(tx.category, "Groceries")
+        self.assertTrue(tx.category_locked)
+
+    def test_rules_reapply_preview_counts_changes(self):
+        CategoryRule.objects.create(keyword="CURSOR", category="AI tools")
+        BankTransaction.objects.create(
+            transaction_date=date(2025, 7, 1),
+            description="CURSOR USAGE",
+            dr=Decimal("20.00"),
+            category="Uncategorized",
+            category_locked=False,
+            import_hash="preview-1",
+            account_name="Personal",
+        )
+        BankTransaction.objects.create(
+            transaction_date=date(2025, 7, 2),
+            description="CURSOR USAGE",
+            dr=Decimal("20.00"),
+            category="AI tools",
+            category_locked=False,
+            import_hash="preview-2",
+            account_name="Personal",
+        )
+
+        preview = preview_rule_reapply()
+        self.assertEqual(preview["would_change"], 1)
+        self.assertEqual(preview["unchanged"], 1)
+
+    def test_category_detail_monthly_aggregation(self):
+        Category.objects.create(name="Alcohol", is_active=True)
+        for month, amount in ((1, "30.00"), (2, "50.00")):
+            BankTransaction.objects.create(
+                transaction_date=date(2025, month, 15),
+                description="LCBO",
+                dr=Decimal(amount),
+                category="Alcohol",
+                import_hash="alcohol-{month}".format(month=month),
+                account_name="Personal",
+            )
+
+        from django.test import RequestFactory
+
+        from banking.views import category_detail
+
+        request = RequestFactory().get("/categories/Alcohol/")
+        response = category_detail(request, "Alcohol")
+        content = response.content.decode()
+        self.assertIn("2025-01", content)
+        self.assertIn("2025-02", content)
