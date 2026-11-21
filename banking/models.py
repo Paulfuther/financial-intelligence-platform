@@ -8,12 +8,18 @@ class BankTransaction(models.Model):
     cr = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     balance = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     category = models.TextField(default="Uncategorized")
-    import_hash = models.TextField(unique=True)
+    import_hash = models.TextField()
     account_name = models.CharField(max_length=100, default="Personal")
-    
+
     class Meta:
         managed = False
         db_table = "bank_transactions"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["account_name", "import_hash"],
+                name="bank_transactions_account_import_hash_uniq",
+            ),
+        ]
 
     def __str__(self):
         return f"{self.transaction_date} - {self.description}"
@@ -49,6 +55,8 @@ class ImportLog(models.Model):
         null=True,
         blank=True
     )
+
+    transaction_hashes = models.JSONField(default=list, blank=True)
 
 
 class DebtAccount(models.Model):

@@ -1,6 +1,5 @@
 import calendar
 import csv
-import hashlib
 import json
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -13,6 +12,13 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_POST
 
 from .forms import BankImportForm
+from .import_services import (
+    build_hash,
+    parse_date,
+    parse_money,
+    transaction_is_duplicate,
+    transactions_for_import_log,
+)
 from .models import BankTransaction, Category, CategoryRule, DebtAccount, ImportLog
 
 MONTHS = [
@@ -617,43 +623,6 @@ def category_detail(request, category):
 
     return render(request, "banking/category_detail.html", context)
 
-def parse_money(value):
-    if value is None:
-        return None
-
-    value = str(value).strip().replace("$", "").replace(",", "")
-
-    if value == "":
-        return None
-
-    try:
-        return Decimal(value)
-    except InvalidOperation:
-        return None
-
-def parse_date(value):
-    value = str(value).strip()
-
-    for fmt in ("%Y-%m-%d", "%m/%d/%Y"):
-        try:
-            return datetime.strptime(value, fmt).date()
-        except ValueError:
-            pass
-
-    return None
-
-def build_hash(transaction_date, description, dr, cr, balance):
-    raw = (
-        f"{transaction_date}|"
-        f"{description.strip()}|"
-        f"{dr or 0}|"
-        f"{cr or 0}|"
-        f"{balance or 0}|"
-        
-    )
-
-    return hashlib.md5(raw.encode("utf-8")).hexdigest()
-
 def apply_category_rules():
     for rule in CategoryRule.objects.all():
         BankTransaction.objects.filter(
@@ -662,7 +631,6 @@ def apply_category_rules():
         ).update(category=rule.category)
 
 def import_log_list(request):
-
     logs = (
         ImportLog.objects
         .all()
@@ -685,6 +653,46 @@ def import_log_list(request):
         "banking/import_log_list.html",
         context,
     )
+
+
+@require_POST
+def undo_import_log(request, import_log_id):
+    import_log = get_object_or_404(ImportLog, pk=import_log_id)
+    transactions = list(transactions_for_import_log(import_log))
+
+    if not transactions:
+        messages.warning(request, "No transactions matched this import.")
+        return redirect("banking:import_log_list")
+
+    ids = [tx.pk for tx in transactions]
+    deleted_count, _ = BankTransaction.objects.filter(pk__in=ids).delete()
+
+    import_log.imported_count = 0
+    import_log.transaction_hashes = []
+    import_log.save(update_fields=["imported_count", "transaction_hashes"])
+
+    messages.success(
+        request,
+        f"Removed {deleted_count} transaction(s) from import #{import_log.id} ({import_log.file_name}).",
+    )
+    return redirect("banking:import_log_list")
+
+
+def undo_import_preview(request, import_log_id):
+    import_log = get_object_or_404(ImportLog, pk=import_log_id)
+    tracked_hashes = import_log.transaction_hashes or []
+    transactions = list(transactions_for_import_log(import_log))
+
+    return render(
+        request,
+        "banking/undo_import.html",
+        {
+            "import_log": import_log,
+            "transactions": transactions,
+            "using_heuristic": not tracked_hashes,
+        },
+    )
+
 
 def vehicle_summary(request):
     year = request.GET.get("year")
@@ -1328,6 +1336,7 @@ def parse_import_rows(csv_file, account_name):
             dr,
             cr,
             balance,
+            account_name,
         )
 
         clean_row = {
@@ -1341,16 +1350,15 @@ def parse_import_rows(csv_file, account_name):
             "account_name": account_name,
         }
 
-        duplicate_exists = BankTransaction.objects.filter(
-            account_name=account_name,
-            transaction_date=transaction_date,
-            description=description,
-            dr=dr,
-            cr=cr,
-            balance=balance,
-        ).exists()
-
-        if duplicate_exists:
+        if transaction_is_duplicate(
+            account_name,
+            transaction_date,
+            description,
+            dr,
+            cr,
+            balance,
+            import_hash,
+        ):
             duplicate_rows.append(clean_row)
         else:
             valid_rows.append(clean_row)
@@ -1403,6 +1411,7 @@ def confirm_bank_csv_import(request):
     skipped = 0
     errors = 0
     latest_transaction_date = None
+    transaction_hashes = []
 
     for row in rows:
         transaction_date = parse_date(row["transaction_date"])
@@ -1411,16 +1420,15 @@ def confirm_bank_csv_import(request):
         cr = parse_money(row["cr"])
         balance = parse_money(row["balance"])
 
-        duplicate_exists = BankTransaction.objects.filter(
-            account_name=row["account_name"],
-            transaction_date=transaction_date,
-            description=row["description"],
-            dr=dr,
-            cr=cr,
-            balance=balance,
-        ).exists()
-
-        if duplicate_exists:
+        if transaction_is_duplicate(
+            row["account_name"],
+            transaction_date,
+            row["description"],
+            dr,
+            cr,
+            balance,
+            row["import_hash"],
+        ):
             skipped += 1
             continue
 
@@ -1436,6 +1444,7 @@ def confirm_bank_csv_import(request):
         )
 
         imported += 1
+        transaction_hashes.append(row["import_hash"])
 
         if latest_transaction_date is None or transaction_date > latest_transaction_date:
             latest_transaction_date = transaction_date
@@ -1449,6 +1458,7 @@ def confirm_bank_csv_import(request):
         skipped_count=skipped,
         error_count=errors,
         latest_transaction_date=latest_transaction_date,
+        transaction_hashes=transaction_hashes,
     )
 
     request.session.pop("pending_import_rows", None)
