@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 
 from django.db import connection
-from django.test import TransactionTestCase
+from django.test import SimpleTestCase, TransactionTestCase
 
 from banking.import_services import (
     build_hash,
@@ -208,3 +208,19 @@ class ImportDeduplicationTests(TransactionTestCase):
         )
 
         self.assertEqual(BankTransaction.objects.count(), 2)
+
+
+class Migration0007SqlTests(SimpleTestCase):
+    def test_apply_sql_only_targets_bank_transactions(self):
+        from banking.import_hash_migration_ops import (
+            POSTGRES_APPLY_SQL,
+            migration_sql_targets_only_bank_transactions,
+        )
+
+        self.assertTrue(migration_sql_targets_only_bank_transactions())
+        self.assertIn("t.relname = 'bank_transactions'", POSTGRES_APPLY_SQL)
+        self.assertNotIn(
+            "DROP INDEX IF EXISTS bank_transactions_import_hash_key;",
+            POSTGRES_APPLY_SQL,
+        )
+        self.assertNotIn("bank_transactions_bad_backup", POSTGRES_APPLY_SQL)
