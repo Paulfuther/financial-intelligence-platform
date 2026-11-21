@@ -32,6 +32,7 @@
       <table class="table table-sm table-striped align-middle">
         <thead>
           <tr>
+            <th>ID</th>
             <th>Date</th>
             <th>Account</th>
             <th>File</th>
@@ -39,11 +40,13 @@
             <th class="text-end">Imported</th>
             <th class="text-end">Skipped</th>
             <th class="text-end">Errors</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {% for log in logs %}
             <tr>
+              <td>{{ log.id }}</td>
               <td>{{ log.imported_at|date:"M d, Y g:i A" }}</td>
               <td>{{ log.account_name }}</td>
               <td>{{ log.file_name }}</td>
@@ -57,10 +60,20 @@
               <td class="text-end">{{ log.imported_count }}</td>
               <td class="text-end">{{ log.skipped_count }}</td>
               <td class="text-end">{{ log.error_count }}</td>
+              <td class="text-end">
+                {% if log.imported_count %}
+                  <a
+                    href="{% url 'banking:undo_import_preview' log.id %}"
+                    class="btn btn-sm btn-outline-danger"
+                  >
+                    Undo
+                  </a>
+                {% endif %}
+              </td>
             </tr>
           {% empty %}
             <tr>
-              <td colspan="6" class="text-center text-muted">
+              <td colspan="9" class="text-center text-muted">
                 No imports yet.
               </td>
             </tr>

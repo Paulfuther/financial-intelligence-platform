@@ -39,6 +39,16 @@ urlpatterns = [
     path("import/", views.import_bank_csv, name="import_bank_csv"),
     path("imports/", views.import_log_list, name="import_log_list"),
     path(
+        "imports/<int:import_log_id>/undo/",
+        views.undo_import_preview,
+        name="undo_import_preview",
+    ),
+    path(
+        "imports/<int:import_log_id>/undo/confirm/",
+        views.undo_import_log,
+        name="undo_import_log",
+    ),
+    path(
     "categories/<str:category>/",
     views.category_detail,
     name="category_detail",
