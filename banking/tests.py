@@ -215,12 +215,32 @@ class Migration0007SqlTests(SimpleTestCase):
         from banking.import_hash_migration_ops import (
             POSTGRES_APPLY_SQL,
             migration_sql_targets_only_bank_transactions,
+            postgres_sql_has_no_format_placeholders,
         )
 
         self.assertTrue(migration_sql_targets_only_bank_transactions())
-        self.assertIn("t.relname = 'bank_transactions'", POSTGRES_APPLY_SQL)
+        self.assertTrue(postgres_sql_has_no_format_placeholders(POSTGRES_APPLY_SQL))
+        self.assertIn("t.relname = table_name", POSTGRES_APPLY_SQL)
         self.assertNotIn(
             "DROP INDEX IF EXISTS bank_transactions_import_hash_key;",
             POSTGRES_APPLY_SQL,
         )
         self.assertNotIn("bank_transactions_bad_backup", POSTGRES_APPLY_SQL)
+
+    def test_compose_sql_mogrify_on_percent(self):
+        """Guardrail: migration SQL must stay free of mogrify placeholders."""
+        from django.db import connection
+
+        from banking.import_hash_migration_ops import (
+            POSTGRES_APPLY_SQL,
+            postgres_sql_has_no_format_placeholders,
+        )
+
+        self.assertTrue(postgres_sql_has_no_format_placeholders(POSTGRES_APPLY_SQL))
+        if connection.vendor != "postgresql":
+            return
+        with self.assertRaises(IndexError):
+            connection.ops.compose_sql(
+                "SELECT format('%I', 'bank_transactions')",
+                (),
+            )
