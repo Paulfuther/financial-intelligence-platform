@@ -8,6 +8,7 @@ class BankTransaction(models.Model):
     cr = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     balance = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     category = models.TextField(default="Uncategorized")
+    category_locked = models.BooleanField(default=False)
     import_hash = models.TextField()
     account_name = models.CharField(max_length=100, default="Personal")
 
@@ -99,26 +100,11 @@ class DebtAccount(models.Model):
 )
     
 
-def apply_rule_to_transaction(transaction):
-    rules = CategoryRule.objects.all()
+def apply_rule_to_transaction(transaction, *, save=False):
+    """Backward-compatible wrapper; prefer banking.category_services."""
+    from .category_services import apply_rule_to_transaction as _apply
 
-    description = (transaction.description or "").upper()
-
-    best_match = None
-    best_length = 0
-
-    for rule in rules:
-        keyword = rule.keyword.upper()
-
-        if keyword in description:
-            if len(keyword) > best_length:
-                best_match = rule
-                best_length = len(keyword)
-
-    if best_match:
-        transaction.category = best_match.category
-    else:
-        transaction.category = "Uncategorized"
+    return _apply(transaction, save=save)
 
 
 class Category(models.Model):

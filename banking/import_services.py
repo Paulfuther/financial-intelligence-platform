@@ -4,7 +4,8 @@ from decimal import Decimal, InvalidOperation
 
 from django.db.models import Q
 
-from .models import BankTransaction, CategoryRule, ImportLog
+from .category_services import apply_rules_to_queryset
+from .models import BankTransaction, ImportLog
 
 
 def parse_money(value):
@@ -162,11 +163,7 @@ def resolve_target_transactions_for_mirror_cleanup(
 
 
 def apply_category_rules():
-    for rule in CategoryRule.objects.all():
-        BankTransaction.objects.filter(
-            description__icontains=rule.keyword,
-            category="Uncategorized",
-        ).update(category=rule.category)
+    apply_rules_to_queryset(only_uncategorized=True)
 
 
 def persist_csv_import(rows, account_name, file_name):

@@ -36,6 +36,20 @@ class MirrorCleanupForm(forms.Form):
     )
 
 
+class CategoryForm(forms.Form):
+    name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": "form-control", "placeholder": "Example: Alcohol"}),
+    )
+
+
+class CategoryRenameForm(forms.Form):
+    new_name = forms.CharField(
+        max_length=100,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+
+
 class BankImportForm(forms.Form):
     account_name = forms.ChoiceField(
         choices=ACCOUNT_CHOICES,
